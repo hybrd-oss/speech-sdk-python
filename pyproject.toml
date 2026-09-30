@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-dependencies = []
+dependencies = ["httpx>=0.28,<1"]
 
 [dependency-groups]
 dev = [
@@ -42,6 +42,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "ANN", "S", "A", "PIE", "R
 python_version = "3.11"
 strict = true
 explicit_package_bases = true
+mypy_path = "src"
 exclude = ["^(tests/semgrep|build|dist|artifacts)/"]
 warn_unreachable = true
 
