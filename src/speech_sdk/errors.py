@@ -38,9 +38,9 @@ class ProviderError(SpeechSDKError):
         self.retryable = retryable
         self.retry_after = retry_after
         self.stage = "synthesis"
-        # Codes and IDs can echo secrets too: only expose their presence automatically.
+        # Models, codes and IDs can echo secrets: keep them in explicit attributes only.
         super().__init__(
-            f"Speech synthesis failed ({provider}/{model}, status={status_code}, "
+            f"Speech synthesis failed ({provider}, status={status_code}, "
             f"code={'present' if code else 'absent'}, "
             f"request_id={'present' if request_id else 'absent'})"
         )

@@ -2,7 +2,14 @@
 
 from .api import generate_speech, stream_speech
 from .errors import MissingApiKeyError, NoSpeechGeneratedError, ProviderError, SpeechSDKError
-from .providers import OpenAIProvider, XAIProvider
+from .providers import (
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_XAI_MODEL,
+    OPENAI_MODELS,
+    XAI_MODELS,
+    OpenAIProvider,
+    XAIProvider,
+)
 from .types import (
     AudioData,
     AudioOutput,
@@ -14,6 +21,10 @@ from .types import (
 )
 
 __all__ = [
+    "DEFAULT_OPENAI_MODEL",
+    "DEFAULT_XAI_MODEL",
+    "OPENAI_MODELS",
+    "XAI_MODELS",
     "AudioData",
     "AudioOutput",
     "MissingApiKeyError",

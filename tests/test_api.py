@@ -99,6 +99,210 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                     self.assertGreaterEqual(result.metadata.latency_ms, 0)
                     self.assertFalse(client.is_closed)
 
+    def test_model_constants_exports_and_defaults(self) -> None:
+        from speech_sdk import DEFAULT_OPENAI_MODEL, DEFAULT_XAI_MODEL, OPENAI_MODELS, XAI_MODELS
+        from speech_sdk.providers import OPENAI_MODELS as provider_openai_models
+        from speech_sdk.providers import XAI_MODELS as provider_xai_models
+        from speech_sdk.providers.openai import DEFAULT_OPENAI_MODEL as openai_default
+        from speech_sdk.providers.xai import DEFAULT_XAI_MODEL as xai_default
+
+        self.assertEqual(OPENAI_MODELS, ("gpt-4o-mini-tts", "tts-1", "tts-1-hd"))
+        self.assertEqual(XAI_MODELS, ("grok-tts",))
+        self.assertIs(OPENAI_MODELS, provider_openai_models)
+        self.assertIs(XAI_MODELS, provider_xai_models)
+        self.assertEqual(DEFAULT_OPENAI_MODEL, openai_default)
+        self.assertEqual(DEFAULT_XAI_MODEL, xai_default)
+        self.assertEqual(OpenAIProvider().model(None).model_id, DEFAULT_OPENAI_MODEL)
+        self.assertEqual(XAIProvider().model(None).model_id, DEFAULT_XAI_MODEL)
+        self.assertEqual(DEFAULT_OPENAI_MODEL, "gpt-4o-mini-tts")
+        self.assertEqual(DEFAULT_XAI_MODEL, "grok-tts")
+
+    async def test_generic_models_public_buffered_and_streamed(self) -> None:
+        for provider_type in (OpenAIProvider, XAIProvider):
+            provider = provider_type(api_key="fixture-key")
+            for name in (
+                "nope",
+                "grok-tts/extra",
+                "secret-identifier",
+                "gpt-4o-mini-tts-2025-12-15",
+                "org/namespace/future-tts",
+                " future\nmodel ",
+                "/",
+                " \t/ \n",
+            ):
+                for configured in (False, True):
+                    with self.subTest(provider=provider.name, name=name, configured=configured):
+                        model = (
+                            ResolvedModel(provider, name)
+                            if configured
+                            else f"{provider.name}/{name}"
+                        )
+                        expected: dict[str, object] = (
+                            {
+                                "model": name,
+                                "input": "hi",
+                                "voice": "v",
+                                "stream_format": "audio",
+                                "instructions": "canonical\n\nnative",
+                                "speed": 1.0,
+                            }
+                            if provider.name == "openai"
+                            else {"text": "hi", "voice_id": "v", "language": "auto", "speed": 1.0}
+                        )
+                        options: dict[str, object] = {"speed": 1.0}
+                        instructions = None
+                        if provider.name == "openai":
+                            options.update(model="ignored", instructions="native")
+                            instructions = "canonical"
+                        seen: list[httpx.Request] = []
+
+                        def handler(
+                            request: httpx.Request, seen: list[httpx.Request] = seen
+                        ) -> httpx.Response:
+                            seen.append(request)
+                            return httpx.Response(200, content=b"audio")
+
+                        async with httpx.AsyncClient(
+                            transport=httpx.MockTransport(handler)
+                        ) as client:
+                            result = await generate_speech(
+                                model=model,
+                                text="hi",
+                                voice="v",
+                                api_key="fixture-key",
+                                provider_options=options,
+                                instructions=instructions,
+                                http_client=client,
+                            )
+                            self.assertEqual((result.provider, result.model), (provider.name, name))
+                            async with stream_speech(
+                                model=model,
+                                text="hi",
+                                voice="v",
+                                api_key="fixture-key",
+                                provider_options=options,
+                                instructions=instructions,
+                                http_client=client,
+                            ) as stream:
+                                self.assertEqual(
+                                    (stream.provider, stream.model), (provider.name, name)
+                                )
+                                self.assertEqual(
+                                    b"".join([chunk async for chunk in stream.audio]), b"audio"
+                                )
+                        self.assertEqual(len(seen), 2)
+                        for request in seen:
+                            self.assertEqual(json.loads(request.content), expected)
+                            self.assertEqual(
+                                request.url.path,
+                                "/v1/audio/speech" if provider.name == "openai" else "/v1/tts",
+                            )
+
+    async def test_plain_string_models_before_routing_or_client(self) -> None:
+        class Overridden(str):
+            def strip(self, _chars: str | None = None, /) -> str:
+                raise AssertionError("Subclass strip called")
+
+            def partition(self, _sep: str, /) -> tuple[str, str, str]:
+                return ("openai", "/", "rewritten")
+
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, content=b"audio")
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            for provider in (
+                OpenAIProvider(api_key="fixture-key"),
+                XAIProvider(api_key="fixture-key"),
+            ):
+                cases: tuple[tuple[str | ResolvedModel, type[Exception]], ...] = (
+                    (Overridden(" \n\t"), TypeError),
+                    (Overridden("unknown/original"), TypeError),
+                    (Overridden(f"{provider.name}/future"), TypeError),
+                    (ResolvedModel(provider, Overridden(" \n\t")), TypeError),
+                    (ResolvedModel(provider, Overridden("org/future")), TypeError),
+                    (" \n\t", ValueError),
+                    (f"{provider.name}/ \n\t", ValueError),
+                    ("unknown/original", ValueError),
+                )
+                for model, error in cases:
+                    for supplied in (None, client):
+                        with (
+                            self.subTest(
+                                provider=provider.name, model=model, supplied=supplied is not None
+                            ),
+                            patch(
+                                "speech_sdk._http.httpx.AsyncClient",
+                                side_effect=AssertionError("Client created"),
+                            ) as factory,
+                            patch.object(client, "aclose", wraps=client.aclose) as close,
+                        ):
+                            with self.assertRaises(error):
+                                await generate_speech(
+                                    model=model,
+                                    text="hi",
+                                    voice="v",
+                                    api_key="fixture-key",
+                                    http_client=supplied,
+                                )
+                            with self.assertRaises(error):
+                                async with stream_speech(
+                                    model=model,
+                                    text="hi",
+                                    voice="v",
+                                    api_key="fixture-key",
+                                    http_client=supplied,
+                                ):
+                                    self.fail("Invalid model published audio")
+                            factory.assert_not_called()
+                            close.assert_not_awaited()
+                            self.assertFalse(client.is_closed)
+            self.assertEqual(requests, [])
+
+    async def test_untrusted_model_error_summary(self) -> None:
+        name = "fixture-key\nforged/model"
+        for provider in ("openai", "xai"):
+            for status, content, error_type in (
+                (400, b"fixture-key", ProviderError),
+                (200, b"", NoSpeechGeneratedError),
+            ):
+
+                def handler(
+                    request: httpx.Request, status: int = status, content: bytes = content
+                ) -> httpx.Response:
+                    return httpx.Response(status, content=content)
+
+                async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                    with self.assertRaises(error_type) as caught:
+                        await generate_speech(
+                            model=f"{provider}/{name}",
+                            text="hi",
+                            voice="v",
+                            api_key="fixture-key",
+                            http_client=client,
+                            max_retries=0,
+                        )
+                    self.assertEqual(caught.exception.model, name)
+                    for summary in (str(caught.exception), repr(caught.exception)):
+                        for untrusted in (name, "fixture-key", "forged", "\n"):
+                            self.assertNotIn(untrusted, summary)
+                    with self.assertRaises(error_type) as streamed:
+                        async with stream_speech(
+                            model=f"{provider}/{name}",
+                            text="hi",
+                            voice="v",
+                            api_key="fixture-key",
+                            http_client=client,
+                            max_retries=0,
+                        ) as stream:
+                            async for _chunk in stream.audio:
+                                self.fail("Error response published audio")
+                    self.assertEqual(streamed.exception.model, name)
+                    self.assertNotIn("fixture-key", repr(streamed.exception))
+                    self.assertNotIn("\n", str(streamed.exception))
+
     async def exact_request(self, provider: str, codec: str, mime: str) -> None:
         native: dict[str, object] = (
             {"response_format": codec, "model": "ignored", "input": "ignored", "voice": "ignored"}
@@ -419,21 +623,32 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                     self.fail("Invalid input published")
 
     async def test_invalid_resolution_and_inputs_before_client(self) -> None:
+        model: object
         for model in (
             "",
             "unknown",
             "secret-identifier",
             "/grok-tts",
             "xai/",
-            "xai/nope",
-            "xai/grok-tts/extra",
-            "openai/secret-identifier",
+            "openai/",
+            "xai/ \n\t",
+            "openai/ \n\t",
+            "unknown/org/future-model",
             "OPENAI",
             " xai",
             3,
-            ResolvedModel(XAIProvider(), "unknown"),
+            True,
+            [],
+            {},
             ResolvedModel(XAIProvider(), cast(str, None)),
             ResolvedModel(XAIProvider(), ""),
+            ResolvedModel(OpenAIProvider(), " \n\t"),
+            ResolvedModel(XAIProvider(), " \n\t"),
+            ResolvedModel(OpenAIProvider(), cast(str, 1)),
+            ResolvedModel(XAIProvider(), cast(str, True)),
+            ResolvedModel(OpenAIProvider(), cast(str, [])),
+            ResolvedModel(XAIProvider(), cast(str, {})),
+            ResolvedModel(cast(OpenAIProvider, object()), "future"),
         ):
             await self.invalid_call({"model": model})
         for values in (

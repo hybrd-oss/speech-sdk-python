@@ -12,12 +12,15 @@ from .._validation import (
     endpoint_url,
     prepare_request,
     resolve_api_key,
+    validate_model_id,
     validate_text_voice,
 )
 from ..types import AudioOutput, PreparedRequest, ResolvedModel
 
-__all__ = ["XAIProvider"]
+__all__ = ["DEFAULT_XAI_MODEL", "XAI_MODELS", "XAIProvider"]
 
+XAI_MODELS = ("grok-tts",)
+DEFAULT_XAI_MODEL = XAI_MODELS[0]
 _RATES = (8000, 16000, 22050, 24000, 44100, 48000)
 _BIT_RATES = (32000, 64000, 96000, 128000, 192000)
 _MEDIA_TYPES = {
@@ -137,9 +140,8 @@ class XAIProvider:
         endpoint_url(self.base_url, "tts")
 
     def model(self, model_id: str | None = None) -> ResolvedModel:
-        selected = "grok-tts" if model_id is None else model_id
-        if not isinstance(selected, str) or selected != "grok-tts":
-            raise ValueError("Unknown xAI TTS model")
+        """The identifier is metadata only; REST TTS has no model selector."""
+        selected = validate_model_id(DEFAULT_XAI_MODEL if model_id is None else model_id)
         return ResolvedModel(self, selected)
 
     def prepare(
@@ -156,7 +158,7 @@ class XAIProvider:
         max_retries: int = 2,
         headers: Mapping[str, str] | None = None,
     ) -> PreparedRequest:
-        model = self.model(model_id)
+        model = validate_model_id(model_id)
         input_chars = validate_text_voice(text, voice, 60000)
         _instructions(instructions)
         body = copy_options(provider_options)
@@ -166,7 +168,7 @@ class XAIProvider:
         key = resolve_api_key(self.name, "XAI_API_KEY", explicit=api_key, configured=self.api_key)
         return prepare_request(
             provider=self.name,
-            model=model.model_id,
+            model=model,
             base_url=self.base_url,
             path="tts",
             api_key=key,

@@ -33,6 +33,7 @@ Milestone one's gate is **satisfied**: offline suite/package checks and a real x
 
 - Python 3.11+, async-first, `httpx` as the only initial runtime dependency; standard-library `unittest` checks.
 - Binary HTTP responses only. No provider SDKs, WebSocket transport, Node runtime, or audio-processing dependency.
+- Generic nonblank model strings, preserved verbatim; exported model tuples/default strings are conveniences, not whitelists. Unknown providers still fail locally. OpenAI forwards exact IDs and unknown-model instructions; xAI IDs are metadata only, not REST backend selectors. Automatic error summaries omit untrusted model IDs.
 - Current xAI docs specify 60,000 input characters; pinned upstream uses 15,000. Use 60,000 and record this as a provider-contract update, not upstream parity.
 - xAI's normal wire default is 24 kHz. Pinned upstream's output helper selects 48 kHz for explicit WAV/PCM without a rate. Initial Python output defaults to 24 kHz; explicit rates remain configurable.
 - Input text is passed verbatim. Upstream OpenAI expressive-tag extraction, pronunciation mapping, chunking, and alignment remain deferred.

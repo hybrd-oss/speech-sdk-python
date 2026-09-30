@@ -6,7 +6,7 @@ Status: adapter implemented with offline coverage; real xAI buffered **and** str
 
 `XAIProvider` and buffered synthesis through `generate_speech`. Direct `POST https://api.x.ai/v1/tts`, bearer key from explicit configuration or `XAI_API_KEY`. No xAI SDK or WebSocket dependency.
 
-One model: `grok-tts`, default. This is the SDK's resolution identifier; **do not send a `model` field** to the REST endpoint. Reject attempts to supply one through native options, since xAI does not select TTS models that way.
+Convenience constants: `XAI_MODELS = ("grok-tts",)`, `DEFAULT_XAI_MODEL = "grok-tts"`; not a whitelist. Accept any nonblank string ID, preserving it in unified metadata. **The ID does not select a different xAI backend:** REST TTS has no model selector. **Do not send a `model` field** to the endpoint; native attempts remain rejected. Existing endpoint validation applies unchanged for every metadata ID.
 
 Use **60,000 input characters** from current docs, rather than the pinned upstream's 15,000. Oversized text fails locally; no auto-chunking. Python Unicode code-point counting is defined in 002.
 
@@ -55,7 +55,7 @@ Supported rates: **8,000, 16,000, 22,050, 24,000, 44,100, 48,000 Hz**. Keep expl
 
 ## Acceptance checks
 
-- Exact endpoint/auth/default body with no `model`; `xai` and `xai/grok-tts` resolve identically.
+- Exact endpoint/auth/default body with no `model`; `xai` and `xai/grok-tts` resolve identically. Arbitrary dated/namespaced IDs are retained as metadata through buffered/streamed paths without changing the wire backend.
 - Voice/text precedence, default/explicit language, tagged input passthrough, and unchanged caller mappings.
 - 60,000 characters accepted; 60,001 rejected before HTTP. Add a case above 15,000 proving we intentionally updated the reference limit.
 - MP3/WAV/PCM, every listed sample rate, native telephony codec mapping, MP3 bit-rate validation, default PCM rate, and explicit-output precedence.

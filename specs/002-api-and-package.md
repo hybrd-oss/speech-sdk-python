@@ -42,7 +42,8 @@ def stream_speech(...) -> AsyncContextManager[SpeechStream]: ...
 ## Resolution and validation
 
 - Accept `openai`, `xai`, and `provider/model-id`; split on the first slash. Bare names select the provider defaults from 004/005.
-- Reject unknown providers, unknown models, empty model components, and malformed identifiers before HTTP. No dynamic plugin discovery or network model listing.
+- Accept any nonblank string model ID, preserving the original value including further slashes. Configured `.model(id)` takes the ID directly without provider-prefix parsing; `.model(None)` selects the default, but an explicit `ResolvedModel` ID must be a nonblank string. Reject unknown providers, blank IDs and invalid types before HTTP. No model whitelist, dynamic plugin discovery or network model listing.
+- Export flat convenience tuples `OPENAI_MODELS`/`XAI_MODELS` and strings `DEFAULT_OPENAI_MODEL`/`DEFAULT_XAI_MODEL`; these do not restrict accepted IDs. Error summaries omit untrusted model IDs while explicit `model` attributes retain them. xAI IDs are metadata only, not REST backend selectors (005).
 - Require string text/voice with non-whitespace content. Validate using `.strip()` but send original text and voice without silent normalization.
 - Count characters with Python `len(text)` (Unicode code points). Record the difference from JavaScript UTF-16 `.length`; do not add a tokenizer merely to imitate it.
 - `max_retries` is a nonnegative integer, not a bool; sample rates are positive integers, not bools. Reject invalid option types, nonfinite numbers, and non-JSON-serializable provider options before requests.
@@ -59,4 +60,4 @@ Package setup and real speech exports are implemented. Do not export stubs that 
 
 ## Reference
 
-Pinned upstream: `src/resolve-provider.ts`, `src/speech-provider.ts`, `src/generate-speech-result.ts`, `src/stream-speech-result.ts`, and `src/__tests__/resolve-provider.test.ts`. Python resource ownership and stricter known-model validation are intentional differences.
+Pinned upstream: `src/resolve-provider.ts`, `src/speech-provider.ts`, `src/generate-speech-result.ts`, `src/stream-speech-result.ts`, and `src/__tests__/resolve-provider.test.ts`. Python resource ownership and nonblank model-ID validation are intentional differences; model availability is not locally whitelisted.

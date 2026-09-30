@@ -7,6 +7,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 import httpx
 
 from . import _http
+from ._validation import validate_model_id
 from .errors import NoSpeechGeneratedError
 from .providers import OpenAIProvider, XAIProvider
 from .types import (
@@ -26,19 +27,13 @@ __all__ = ["generate_speech", "stream_speech"]
 def _configured_model(model: ResolvedModel) -> ResolvedModel:
     if not isinstance(model.provider, (OpenAIProvider, XAIProvider)):
         raise ValueError("Unknown speech provider")
-    if not isinstance(model.model_id, str) or not model.model_id:
-        raise ValueError("Model identifier must be nonempty")
-    return model.provider.model(model.model_id)
+    return model.provider.model(validate_model_id(model.model_id))
 
 
 def _resolve(model: str | ResolvedModel) -> ResolvedModel:
     if isinstance(model, ResolvedModel):
         return _configured_model(model)
-    if not isinstance(model, str):
-        raise TypeError("Model must be a string or ResolvedModel")
-    provider, separator, model_id = model.partition("/")
-    if separator and not model_id:
-        raise ValueError("Model identifier must be nonempty")
+    provider, separator, model_id = validate_model_id(model).partition("/")
     if provider == "openai":
         return OpenAIProvider().model(model_id if separator else None)
     if provider == "xai":
