@@ -1,12 +1,18 @@
 # Speech SDK for Python
 
-An independent Python port of [Jellypod's Speech SDK](https://github.com/Jellypod-Inc/speech-sdk), with async OpenAI and xAI speech generation over direct HTTP.
+The Jellypod team is cracked, and they made a [Speech SDK](https://github.com/Jellypod-Inc/speech-sdk) for typescript. But the python folks should get to have some fun too. 
+
+So we did what anyone naturally does these days: pointed our agents to the repo and told them to port it to python.
+
+No provider SDK, Node runtime, hosted proxy, or audio decoder is needed.
+
+-----
 
 **Status: milestone one complete.** Both providers' buffered/streaming APIs have offline coverage; real xAI buffered **and** streamed WAV checks **PASS** on `3adfb10` (2026-09-30). Saved audio is valid, nonsilent mono signed 16-bit PCM at 24 kHz: buffered **6.0701667 s**, streamed **6.0705 s**, at ignored `artifacts/smoke/xai/buffered.wav` and `streamed.wav`. Live OpenAI remains **UNVERIFIED** (key absent), manual listening **NOT DONE**, and STT deferred. No PyPI release or full upstream parity is claimed. See [validation evidence](specs/007-validation-and-xai-e2e.md) and [scope](specs/README.md).
 
 Verified offline: **108 tests**, **13 fully offline hooks**, and **104 runtime tests against clean noneditable wheels on Python 3.11 and 3.14**. Exact setup and provenance are recorded in the validation evidence; these are not live OpenAI or listening checks.
 
-Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only direct runtime dependency. No provider SDK, Node runtime, hosted proxy, or audio decoder is needed.
+Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only direct runtime dependency. 
 
 ## Clone, install, run
 
