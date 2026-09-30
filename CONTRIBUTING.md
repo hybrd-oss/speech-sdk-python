@@ -1,6 +1,6 @@
 # Contributing
 
-Both provider adapters and public APIs are implemented with offline checks. Smoke execution is explicitly paid/opt-in; live verification remains pending the post-review `speech-vqx.11` gate. Status and intentional differences are in [specs/](specs/README.md).
+Both provider adapters and public APIs are implemented with offline checks. Smoke execution is explicitly paid/opt-in; the live xAI gate (`speech-vqx.11`) is **FAIL / BLOCKED** after two authorized failed runs. See [live diagnostic evidence](specs/007-validation-and-xai-e2e.md); live OpenAI and manual listening remain unverified. Status and intentional differences are in [specs/](specs/README.md).
 
 ## Setup
 
@@ -14,7 +14,7 @@ uv run --frozen prek run --all-files
 
 Use Python 3.11 for development tooling; the package targets 3.11+. `uv` installs the interpreter if needed. Tool versions and dependency hashes are committed in `uv.lock`; CI pins uv 0.12.21. No API keys or Semgrep account are needed. Initial installation downloads dependencies; the analysis itself runs locally.
 
-`prek` is the Rust hook runner reading `.pre-commit-config.yaml`. Rust-native hooks check YAML/TOML syntax, merge markers, and private-key headers; local commands use the locked environment, with no remote hook repositories. Tool gates check the whole repository, even on documentation-only commits, and CI runs the same hooks. `repo: builtin` requires prek, not the Python pre-commit runner. Hooks do not rewrite files. To apply Ruff fixes deliberately:
+`prek` is the Rust hook runner reading `.pre-commit-config.yaml`. Rust-native hooks check YAML/TOML syntax, merge markers, and private-key headers; local commands use the locked environment, with no remote hook repositories. The 13 hooks include whole-repository tool gates, even on documentation-only commits, and CI runs the same hooks. `repo: builtin` requires prek, not the Python pre-commit runner. Hooks do not rewrite files. To apply Ruff fixes deliberately:
 
 ```sh
 uv run --frozen ruff check --fix .
@@ -33,7 +33,7 @@ uv run --frozen ruff format .
 | unittest | Offline standard-library checks; no credentials, paid calls, or sleep/network dependencies |
 | Lock | `uv lock --check` rejects metadata/lock drift |
 
-Semgrep uses only `.semgrep.yml`, the OSS engine, disabled metrics/version checks, and no upload. `.semgrepignore` includes ordinary tests in scanning; only deliberately unsafe fixtures in `tests/semgrep/` are separately rule-tested. These rules are guardrails, **not a complete security audit or a dependency-vulnerability/secret scanner**. Do not add blanket `noqa`, `type: ignore`, Vulture whitelists, or scanner exclusions to make red checks green. The only typing exception is Radon's untyped library, isolated by an explicit adapter.
+Semgrep uses only `.semgrep.yml`, the OSS engine, disabled metrics/version checks, and no upload. The local rule-validation/regression hook runs `semgrep scan --test --strict`: it parses rule schemas and patterns and checks all four annotated positive/negative rule tests, failing on configuration errors or mismatches. The separate full scan retains `--strict --error --disable-nosem` to block findings and errors. Do not use `semgrep scan --validate`: installed Semgrep 1.178.0 fetches registry pack `p/semgrep-rule-lints` even with a local config. The two existing local hooks need no registry or duplicate scan. After initial dependency installation, verify offline with `UV_OFFLINE=1 uv run --frozen prek run --all-files`; OS network denial can additionally enforce no connections. `.semgrepignore` includes ordinary tests in scanning; only deliberately unsafe fixtures in `tests/semgrep/` are separately rule-tested. These rules are guardrails, **not a complete security audit or a dependency-vulnerability/secret scanner**. Do not add blanket `noqa`, `type: ignore`, Vulture whitelists, or scanner exclusions to make red checks green. Reviewed typing exceptions are Radon's untyped library, isolated by an explicit adapter, and narrow builtin-descriptor annotations in smoke diagnostics/tests: `union-attr` ignores for `BaseException.__cause__.__get__`/`__set__` address Typeshed describing the instance value rather than the class descriptor. Direct descriptor access avoids untrusted exception accessors; the hostile-property regression uses a narrow `override` ignore to exercise that safety boundary. These specific rationales do not permit blanket ignores.
 
 Ruff/mypy/Vulture discover new Python code repository-wide; complexity covers `src/`, `scripts/`, `tests/`, and `smoke/` when present. Add any new code root to the complexity check. Ignored virtual environments and generated artifacts are not project code.
 
@@ -49,11 +49,19 @@ Use `uv lock` after deliberately changing dependencies, review the diff, then re
 
 ## Public-repository safety
 
-Never commit keys, `.env` files, generated audio, or raw provider responses. Keep live smoke calls explicitly opt-in as specified in [008](specs/008-clone-and-run-smoke-tests.md); default hooks/CI must never call providers. Preserve upstream attribution when adapting code and keep implementation plans under `specs/`.
+Never commit keys, `.env` files, generated audio, or raw provider responses. Smoke failure diagnostics must remain limited to local phase, static safe categories, validated HTTP status and allowlisted network causes, without exception text or provider details. Keep live smoke calls explicitly opt-in as specified in [008](specs/008-clone-and-run-smoke-tests.md); default hooks/CI must never call providers. Preserve upstream attribution when adapting code and keep implementation plans under `specs/`.
 
 Maintainers should require the `quality` status check and PR review in repository rules. Those remote settings are not configured by this checkout. Use private vulnerability reporting on GitHub if enabled rather than posting credentials or exploit details in public issues.
 
 ## Runtime-only and installed-artifact checks
+
+For a runtime-only clone setup, use uv without developer dependencies:
+
+```sh
+uv sync --frozen --no-dev --python 3.11
+```
+
+See [README](README.md#clone-install-run) for smoke commands and POSIX/PowerShell key configuration.
 
 Tools stay on Python 3.11. Runtime CI uses Python 3.11 and 3.14 without dev dependencies. Select SDK test modules explicitly: `test_quality_tools` imports Radon and must not be imported in runtime-only jobs. No provider keys are inherited by these commands.
 
@@ -64,7 +72,7 @@ PYTHONPATH=tests env -u XAI_API_KEY -u OPENAI_API_KEY uv run --frozen --no-dev p
 uv sync --frozen --python 3.11
 ```
 
-Clean wheel check (POSIX; scratch path outside checkout, no editable import):
+Clean wheel check (POSIX; scratch path outside checkout, no editable import). The `uv venv` and `uv pip` commands below use uv solely to verify an isolated installed wheel, not for clone setup:
 
 ```sh
 uv run --frozen python -m build

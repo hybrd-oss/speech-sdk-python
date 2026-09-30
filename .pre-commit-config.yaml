@@ -47,15 +47,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      - id: semgrep-validate
-        name: Semgrep rule validation
-        entry: uv run --frozen semgrep scan --validate --config .semgrep.yml --metrics=off --disable-version-check --oss-only --strict
-        language: system
-        pass_filenames: false
-        always_run: true
       - id: semgrep-test
-        name: Semgrep rule regression tests
-        entry: uv run --frozen semgrep scan --test --config .semgrep.yml --metrics=off --disable-version-check --oss-only tests/semgrep/security.py
+        name: Semgrep local rule validation and regression tests
+        entry: uv run --frozen semgrep scan --test --config .semgrep.yml --metrics=off --disable-version-check --oss-only --strict tests/semgrep/security.py
         language: system
         pass_filenames: false
         always_run: true

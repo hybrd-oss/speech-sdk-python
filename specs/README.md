@@ -1,6 +1,6 @@
 # Implementation specs
 
-Status: **002–006 adapters/public APIs and 008 smoke runner implemented with offline checks; 009 baseline implemented. 007 live gate NOT RUN / UNVERIFIED.** Milestone one remains open pending QA/review (.10) and explicit live validation (.11). Start with [001: scope](001-port-scope.md). Live OpenAI and manual listening are also unverified.
+Status: **002–006 adapters/public APIs and 008 smoke runner implemented with offline checks; 009 baseline implemented. [007 live gate](007-validation-and-xai-e2e.md) FAIL / BLOCKED after two failed runner invocations.** The single private diagnostic isolated a valid WAV's unknown-length header; the precise `.26` fix passes offline, not the live gate. Milestone one remains open awaiting final buffered + streamed re-verification (`speech-vqx.11`) after final QA/review; `.10` is closed. Start with [001: scope](001-port-scope.md). Live OpenAI and manual listening are also unverified.
 
 | Spec | Work | Depends on |
 | --- | --- | --- |

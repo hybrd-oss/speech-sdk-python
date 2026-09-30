@@ -2,42 +2,41 @@
 
 An independent Python port of [Jellypod's Speech SDK](https://github.com/Jellypod-Inc/speech-sdk), with async OpenAI and xAI speech generation over direct HTTP.
 
-**Status: adapters and public buffered/streaming APIs implemented and tested offline.** The smoke runner is available, but live xAI/OpenAI and manual listening are **not yet verified**. Milestone one remains open until the explicit xAI gate passes after QA/review (bead `speech-vqx.11`). No PyPI release or full upstream parity is claimed. See [specs](specs/README.md).
+**Status: adapters and public buffered/streaming APIs implemented and tested offline.** The live xAI gate is **FAIL / BLOCKED** after two authorized failed runs; live OpenAI and manual listening remain unverified. See [live diagnostic evidence](specs/007-validation-and-xai-e2e.md). Milestone one remains open until the explicit xAI gate passes after QA/review (bead `speech-vqx.11`). No PyPI release or full upstream parity is claimed. See [specs](specs/README.md).
 
 Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only direct runtime dependency. No provider SDK, Node runtime, hosted proxy, or audio decoder is needed.
 
 ## Clone, install, run
 
-From your clone of this branch (not a published PyPI package):
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) first, then clone this branch (not a published PyPI package). uv manages the Python interpreter and environment:
 
 ```sh
 git clone https://github.com/hybrd-oss/speech-sdk-python.git
 cd speech-sdk-python
 git checkout feat/two-provider-tts
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install .
+uv sync --frozen --no-dev --python 3.11
 
 # Set your own key locally; never commit it:
 export XAI_API_KEY="your-xai-key"
 # export OPENAI_API_KEY="your-openai-key"
-python smoke/run.py                 # all configured providers
-python smoke/run.py --provider xai # explicitly require xAI
-# python smoke/run.py --provider openai
+uv run --frozen --no-dev python smoke/run.py                # all configured providers
+uv run --frozen --no-dev python smoke/run.py --provider xai # explicitly require xAI
+# uv run --frozen --no-dev python smoke/run.py --provider openai
 ```
 
 Windows PowerShell equivalents:
 
 ```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install .
+git clone https://github.com/hybrd-oss/speech-sdk-python.git
+cd speech-sdk-python
+git checkout feat/two-provider-tts
+uv sync --frozen --no-dev --python 3.11
 $env:XAI_API_KEY = "your-xai-key"
 # $env:OPENAI_API_KEY = "your-openai-key"
-python smoke/run.py --provider xai
+uv run --frozen --no-dev python smoke/run.py
+uv run --frozen --no-dev python smoke/run.py --provider xai
+# uv run --frozen --no-dev python smoke/run.py --provider openai
 ```
-
-Alternatively, with [uv](https://docs.astral.sh/uv/getting-started/installation/): `uv sync --frozen --no-dev`, then `uv run --frozen --no-dev python smoke/run.py --provider xai`.
 
 **Explicit runner execution spends API credits.** Each selected provider gets at most two sequential synthesis requests: fixed short text, `eve` (xAI, language `en`) or `alloy` (OpenAI), WAV at 24 kHz, no retries, 60-second network-phase timeouts and a 90-second overall deadline per check. Import, `--help`, offline tests and CI never synthesize speech. No voice/model discovery calls are made.
 
@@ -91,7 +90,7 @@ Omitted output preserves native options or MP3 defaults. Common `AudioOutput` fo
 
 ### Privacy and reliability
 
-Keys, text, instructions, voice IDs and native options go directly to the chosen provider, subject to its policies; no HYBRD gateway is involved. Custom provider base URLs receive credentials too: trust the destination. Protected authorization/content-type headers cannot be overridden, framing headers are rejected, redirects are not followed, and injected client defaults are not mutated. Do not log keys, request bodies, raw provider responses or error `details`/`raw_response` attributes. Runner failure summaries deliberately omit exception details.
+Keys, text, instructions, voice IDs and native options go directly to the chosen provider, subject to its policies; no HYBRD gateway is involved. Custom provider base URLs receive credentials too: trust the destination. Protected authorization/content-type headers cannot be overridden, framing headers are rejected, redirects are not followed, and injected client defaults are not mutated. Do not log keys, request bodies, raw provider responses or error `details`/`raw_response` attributes. Runner failures report the local phase, a static safe category, validated HTTP status when available and allowlisted network causes, never exception text, provider codes/IDs, headers, URLs or response details.
 
 Default SDK `timeout=60.0` covers HTTPX network phases, not total synthesis time; use `asyncio.timeout(...)` for an overall deadline. Longer xAI inputs may need longer timeouts. Default `max_retries=2` means up to three attempts. Ambiguous failed POSTs may already be billed: retries can duplicate synthesis/cost; use `max_retries=0` to bound attempts. No idempotency guarantee is invented. Published streams never retry, reconnect or replay.
 

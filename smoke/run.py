@@ -5,18 +5,99 @@ import asyncio
 import io
 import math
 import os
+import ssl
 import struct
 import wave
 from collections.abc import Sequence
 from pathlib import Path
 
-from speech_sdk import AudioOutput, generate_speech, stream_speech
+import httpx
+
+from speech_sdk import (
+    AudioOutput,
+    MissingApiKeyError,
+    NoSpeechGeneratedError,
+    ProviderError,
+    generate_speech,
+    stream_speech,
+)
 
 TEXT = "Hello from the HYBRD Python speech SDK. This is an end-to-end test."
 ARTIFACTS = Path("artifacts/smoke")
 MODELS = {"xai": "grok-tts", "openai": "gpt-4o-mini-tts"}
 KEYS = {"xai": "XAI_API_KEY", "openai": "OPENAI_API_KEY"}
 MAX_BYTES = 24000 * 2 * 60 + 65536
+NETWORK_CAUSES = {
+    httpx.ConnectError: ("network", "connect"),
+    httpx.ReadError: ("network", "read"),
+    httpx.WriteError: ("network", "write"),
+    httpx.RemoteProtocolError: ("network", "remote-protocol"),
+    httpx.ConnectTimeout: ("timeout", "connect-timeout"),
+    httpx.ReadTimeout: ("timeout", "read-timeout"),
+    httpx.WriteTimeout: ("timeout", "write-timeout"),
+    httpx.PoolTimeout: ("timeout", "pool-timeout"),
+    ssl.SSLCertVerificationError: ("tls-verification", "tls-verification"),
+}
+ERROR_CATEGORIES = {
+    TimeoutError: "timeout",
+    MissingApiKeyError: "configuration",
+    NoSpeechGeneratedError: "no-speech",
+    ValueError: "contract-error",
+    TypeError: "contract-error",
+    wave.Error: "contract-error",
+    EOFError: "contract-error",
+}
+
+
+def network_cause(error: BaseException) -> tuple[str, str] | None:
+    result = None
+    current: BaseException | None = error
+    # ponytail: inspect at most four linked causes; extend only for a verified deeper chain.
+    for _ in range(4):
+        if current is None:
+            break
+        mapped = NETWORK_CAUSES.get(type(current))
+        if mapped is not None:
+            result = mapped
+        # Typeshed describes the instance value, not this built-in class descriptor.
+        current = BaseException.__cause__.__get__(current, BaseException)  # type: ignore[union-attr]
+    return result
+
+
+def provider_status(error: Exception) -> int | None:
+    if type(error) is not ProviderError and type(error) is not NoSpeechGeneratedError:
+        return None
+    status = error.status_code
+    return status if type(status) is int and 100 <= status <= 599 else None
+
+
+def failure_diagnostic(error: Exception, phase: str) -> str:
+    status = provider_status(error)
+    category = ERROR_CATEGORIES.get(type(error), "unexpected-error")
+    if type(error) is ProviderError:
+        category = "provider-error"
+        if status is not None:
+            category = "provider-contract" if 200 <= status < 300 else "provider-http"
+        if status in (401, 403):
+            category = "auth"
+    if phase in ("artifact-setup", "artifact-write") and type(error) in (
+        OSError,
+        PermissionError,
+        FileNotFoundError,
+        FileExistsError,
+        IsADirectoryError,
+        NotADirectoryError,
+    ):
+        category = "file-error"
+    cause = network_cause(error)
+    if cause is not None:
+        category = cause[0]
+    summary = f"phase={phase} category={category}"
+    if status is not None:
+        summary += f" status={status}"
+    if cause is not None:
+        summary += f" cause={cause[1]}"
+    return summary
 
 
 def select(provider: str | None) -> list[str]:
@@ -33,7 +114,7 @@ def select(provider: str | None) -> list[str]:
 
 
 def validate_wav(data: bytes) -> float:
-    if not data or len(data) > MAX_BYTES:
+    if not 0 < len(data) <= MAX_BYTES:
         raise ValueError("Empty or oversized WAV")
     buffer = io.BytesIO(data)
     with wave.open(buffer, "rb") as audio:
@@ -47,8 +128,12 @@ def validate_wav(data: bytes) -> float:
             raise ValueError("Expected mono 16-bit PCM WAV at 24000 Hz")
         # wave leaves the buffer just after the data chunk's size field.
         declared_size = struct.unpack_from("<I", data, buffer.tell() - 4)[0]
+        unknown_sizes = {0xFFFFFFFF}
+        # Only the observed standard-header RIFF/data pair is an additional sentinel.
+        if (buffer.tell(), struct.unpack_from("<I", data, 4)[0]) == (44, 0x80000023):
+            unknown_sizes.add(0x7FFFFFFF)
         pcm = audio.readframes(24000 * 60 + 1)
-        if declared_size != 0xFFFFFFFF and len(pcm) != declared_size:
+        if declared_size not in unknown_sizes and len(pcm) != declared_size:
             raise ValueError("Truncated WAV")
     duration = len(pcm) / (2 * 24000)
     if len(pcm) % 2 or not 0 < duration < 60:
@@ -145,10 +230,13 @@ def save(path: Path, data: bytes) -> None:
 
 async def check(provider: str, mode: str) -> bool:
     path = ARTIFACTS / provider / f"{mode}.wav"
+    phase = "synthesis"
     try:
         async with asyncio.timeout(90):
             data, latency = await synthesize(provider, mode)
+            phase = "audio-validation"
             duration = validate_wav(data)
+            phase = "artifact-write"
             save(path, data)
         timing = "full-call" if mode == "buffered" else "setup"
         print(
@@ -156,9 +244,9 @@ async def check(provider: str, mode: str) -> bool:
             f"{duration:.3f}s 24000Hz mono16 {timing}={latency:.1f}ms {path}"
         )
         return True
-    except Exception:
-        # Do not render exception details: even SDK IDs may contain untrusted data.
-        print(f"{provider}/{MODELS[provider]} {mode}: FAIL (request/audio/file check)")
+    except Exception as error:
+        # Only local phases, static categories and validated status; never exception text/IDs.
+        print(f"{provider}/{MODELS[provider]} {mode}: FAIL ({failure_diagnostic(error, phase)})")
         return False
 
 
@@ -171,8 +259,9 @@ async def run_checks(providers: Sequence[str]) -> int:
             clear_artifacts(provider)
             (ARTIFACTS / provider).mkdir(parents=True, exist_ok=True)
             ready.append(provider)
-        except OSError:
-            print(f"{provider}: FAIL (artifact cleanup/setup; no requests made)")
+        except Exception as error:
+            diagnostic = failure_diagnostic(error, "artifact-setup")
+            print(f"{provider}: FAIL ({diagnostic}; no requests made)")
             failed = True
     for provider in ready:
         for mode in ("buffered", "streamed"):
