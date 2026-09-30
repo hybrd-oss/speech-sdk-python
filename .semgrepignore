@@ -1,0 +1,9 @@
+# Override Semgrep defaults so ordinary tests ARE scanned.
+.git/
+.venv/
+__pycache__/
+build/
+dist/
+artifacts/
+# Unsafe fixtures are scanned separately by the rule-tests hook.
+tests/semgrep/

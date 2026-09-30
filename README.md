@@ -2,7 +2,7 @@
 
 An independent Python port of [Jellypod's Speech SDK](https://github.com/Jellypod-Inc/speech-sdk), starting with OpenAI and xAI over direct HTTP.
 
-**Status: planning.** No runtime implementation or PyPI release exists yet. Implementation work is broken down in [specs/](specs/README.md); full upstream behavioral parity is the long-term goal, not a current claim.
+**Status: development baseline.** The installable package skeleton, strict quality gates, and `prek` hooks are set up; speech generation and PyPI releases are not implemented yet. Implementation work is broken down in [specs/](specs/README.md); full upstream behavioral parity is the long-term goal, not a current claim.
 
 ## First milestone
 
@@ -46,6 +46,18 @@ asyncio.run(main())
 
 Set `OPENAI_API_KEY` or `XAI_API_KEY` for the selected provider. Keys go directly to that provider; never commit them. Examples and API names remain provisional until implementation.
 
+## Development checks
+
+With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
+
+```sh
+uv sync --frozen --python 3.11
+uv run --frozen prek install
+uv run --frozen prek run --all-files
+```
+
+Runs strict mypy, Ruff lint/format, Vulture, a failing Radon complexity gate, local Semgrep rules, and offline tests. No API keys or security-platform accounts required. See [CONTRIBUTING.md](CONTRIBUTING.md) for policies and package checks.
+
 ## Planned smoke tests — not runnable yet
 
 After installation, the intended commands are:
@@ -62,4 +74,4 @@ Each selected provider gets two short paid calls: buffered and streamed WAV. The
 
 Reference baseline: [`0e5a670324fb7be51a22708fe08bd7cc50f09f99`](https://github.com/Jellypod-Inc/speech-sdk/tree/0e5a670324fb7be51a22708fe08bd7cc50f09f99) (`@speech-sdk/core` 0.34.0).
 
-Apache-2.0; see [LICENSE](LICENSE). Upstream attribution: Copyright 2026 Jellypod, Inc. This is an independent HYBRD OSS project, not an official Jellypod release or affiliated with Jellypod. The initial repository contains planning documentation, not translated SDK code.
+Apache-2.0; see [LICENSE](LICENSE). Upstream attribution: Copyright 2026 Jellypod, Inc. This is an independent HYBRD OSS project, not an official Jellypod release or affiliated with Jellypod. The repository currently contains planning documentation and development tooling, not translated SDK code.

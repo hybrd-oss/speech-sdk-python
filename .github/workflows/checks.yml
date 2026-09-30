@@ -1,0 +1,42 @@
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.21'
+          enable-cache: false
+      - name: Install locked development tools
+        run: uv sync --frozen --python 3.11
+      - name: Run the same gates as local hooks
+        run: uv run --frozen prek run --all-files
+      - name: Build distributions
+        run: uv run --frozen python -m build
+      - name: Verify clean wheel installation
+        shell: bash
+        run: |
+          uv venv /tmp/speech-sdk-wheel --python 3.11
+          uv pip install --python /tmp/speech-sdk-wheel/bin/python --no-deps dist/*.whl
+          cd /tmp
+          /tmp/speech-sdk-wheel/bin/python -c 'from importlib.resources import files; import speech_sdk; assert files(speech_sdk).joinpath("py.typed").is_file()'

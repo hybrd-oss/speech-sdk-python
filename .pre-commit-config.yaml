@@ -1,0 +1,73 @@
+default_install_hook_types: [pre-commit]
+repos:
+  # Rust-native checks; no remote hook repository or extra environment.
+  - repo: builtin
+    hooks:
+      - id: check-yaml
+        args: [--disallow-unknown-tags]
+      - id: check-toml
+      - id: check-merge-conflict
+        args: [--assume-in-merge]
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: lock-check
+        name: Dependency lock consistency
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff
+        name: Ruff lint
+        entry: uv run --frozen ruff check .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-format
+        name: Ruff format
+        entry: uv run --frozen ruff format --check .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: mypy
+        name: Strict mypy
+        entry: uv run --frozen mypy .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: vulture
+        name: Vulture dead code
+        entry: uv run --frozen vulture .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: complexity
+        name: Radon complexity <= 10
+        entry: uv run --frozen python scripts/check_complexity.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: semgrep-validate
+        name: Semgrep rule validation
+        entry: uv run --frozen semgrep scan --validate --config .semgrep.yml --metrics=off --disable-version-check --oss-only --strict
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: semgrep-test
+        name: Semgrep rule regression tests
+        entry: uv run --frozen semgrep scan --test --config .semgrep.yml --metrics=off --disable-version-check --oss-only tests/semgrep/security.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: semgrep
+        name: Semgrep security scan
+        entry: uv run --frozen semgrep scan --config .semgrep.yml --metrics=off --disable-version-check --oss-only --strict --error --disable-nosem .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: unittest
+        name: Offline unit tests
+        entry: uv run --frozen python -m unittest discover -s tests -v
+        language: system
+        pass_filenames: false
+        always_run: true

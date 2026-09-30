@@ -1,11 +1,11 @@
 # 002 — Python API and package
 
-Status: draft. Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
+Status: draft; package skeleton implemented in [009](009-quality-baseline.md), public contracts not yet implemented. Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
 
 ## Deliverables
 
 - Minimal `pyproject.toml`, `src/speech_sdk/`, explicit public exports, and `py.typed`.
-- Python 3.11+, `httpx` runtime dependency, standard-library dataclasses/typing/unittest. No vendor SDKs, Pydantic, audio libraries, or mandatory developer tooling.
+- Python 3.11+, `httpx` runtime dependency, standard-library dataclasses/typing/unittest. No vendor SDKs, Pydantic, or audio libraries as runtime dependencies. Strict developer gates are separate development-only dependencies in 009.
 - Use a conventional build backend; no custom build scripts. Distribution name must be checked before publication; import name is `speech_sdk`.
 - Include README attribution and LICENSE in source/wheel artifacts.
 
@@ -55,7 +55,7 @@ def stream_speech(...) -> AsyncContextManager[SpeechStream]: ...
 
 Standard-library tests cover defaults and configured model resolution, key precedence/blank keys, invalid identifiers, Unicode limits, whitespace validation without text mutation, invalid option values, and immutable caller mappings. These checks must run without opening a network connection.
 
-Package setup can be introduced with the first OpenAI vertical slice rather than shipping inert public functions. Do not export stubs that return fake audio or raise `NotImplementedError` as finished work.
+Package setup now exists as the 009 baseline without speech exports; introduce real public functions with the first vertical slice. Do not export stubs that return fake audio or raise `NotImplementedError` as finished work.
 
 ## Reference
 

@@ -94,4 +94,4 @@ Without keys or provider availability, report blocked/unverified and leave the c
 
 ## Validation results
 
-Not run: repository currently contains specifications only. Offline tests, installation checks, live xAI, manual listening, and live OpenAI are all unverified.
+SDK validation not run: repository currently has specifications and the [009 development baseline](009-quality-baseline.md), not speech APIs. Baseline tooling/tests/package checks do not verify provider behavior. Provider offline tests, live xAI, manual listening, and live OpenAI are all unverified.

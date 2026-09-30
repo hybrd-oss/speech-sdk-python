@@ -1,0 +1,40 @@
+rules:
+  - id: python-insecure-tls
+    languages: [python]
+    severity: ERROR
+    message: Keep TLS certificate verification enabled.
+    pattern-either:
+      - pattern: httpx.$CALL(..., verify=False, ...)
+      - pattern: requests.$CALL(..., verify=False, ...)
+      - pattern: $SESSION.verify = False
+
+  - id: python-dynamic-execution
+    languages: [python]
+    severity: ERROR
+    message: Do not execute dynamic Python source; parse data instead.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+
+  - id: python-unsafe-yaml
+    languages: [python]
+    severity: ERROR
+    message: Use yaml.safe_load or an explicit SafeLoader.
+    patterns:
+      - pattern-either:
+          - pattern: yaml.load(...)
+          - pattern: yaml.load_all(...)
+          - pattern: yaml.unsafe_load(...)
+          - pattern: yaml.unsafe_load_all(...)
+          - pattern: yaml.full_load(...)
+          - pattern: yaml.full_load_all(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load_all(..., Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load(..., Loader=yaml.CSafeLoader, ...)
+      - pattern-not: yaml.load_all(..., Loader=yaml.CSafeLoader, ...)
+
+  - id: python-shell-subprocess
+    languages: [python]
+    severity: ERROR
+    message: Pass an argument list to subprocess without shell=True.
+    pattern: subprocess.$CALL(..., shell=True, ...)

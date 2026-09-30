@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speech-sdk-python"
+version = "0.0.0"
+description = "Independent Python speech SDK port — implementation pending"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "build>=1.2.2",
+    "mypy>=1.15",
+    "prek>=0.3",
+    "radon>=6.0.1",
+    "ruff>=0.11",
+    "semgrep>=1.100",
+    "vulture>=2.14",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+speech_sdk = ["py.typed"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["tests/semgrep"]
+force-exclude = true
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "ANN", "S", "A", "PIE", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+explicit_package_bases = true
+exclude = ["^(tests/semgrep|build|dist|artifacts)/"]
+warn_unreachable = true
+
+# Radon ships no type information; the adapter casts only its two entrypoints.
+[[tool.mypy.overrides]]
+module = ["radon.complexity", "radon.visitors"]
+ignore_missing_imports = true
+
+[tool.vulture]
+min_confidence = 60
+exclude = ["*/.venv/*", "*/build/*", "*/dist/*", "*/artifacts/*", "*tests/semgrep/*"]

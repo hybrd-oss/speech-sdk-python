@@ -1,9 +1,10 @@
 # Implementation specs
 
-Status: **draft / not implemented**. Start with [001: scope](001-port-scope.md). These specs define milestone one; they do not claim current functionality.
+Status: **SDK specs draft / not implemented; [009 baseline](009-quality-baseline.md) implemented**. Start with [001: scope](001-port-scope.md). These specs define milestone one; they do not claim current functionality.
 
 | Spec | Work | Depends on |
 | --- | --- | --- |
+| [009](009-quality-baseline.md) | Strict tooling, prek hooks, local security rules and public CI — implemented first | — |
 | [002](002-api-and-package.md) | Python package, public API, results, provider/model resolution | — |
 | [003](003-http-and-errors.md) | HTTP lifecycle, errors, retry policy, timeouts | 002 |
 | [004](004-openai-tts.md) | OpenAI buffered TTS and request contract | 002, 003 |
@@ -15,7 +16,7 @@ Status: **draft / not implemented**. Start with [001: scope](001-port-scope.md).
 Implementation order:
 
 ```text
-002 shared contracts → 003 transport/errors
+009 baseline (done) → 002 shared contracts → 003 transport/errors
                          ├─ 004 OpenAI ─┐
                          └─ 005 xAI ────┴→ 006 streaming → 008 smoke suite → 007 live xAI gate
 ```
