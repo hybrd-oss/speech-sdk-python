@@ -2,7 +2,9 @@
 
 An independent Python port of [Jellypod's Speech SDK](https://github.com/Jellypod-Inc/speech-sdk), with async OpenAI and xAI speech generation over direct HTTP.
 
-**Status: adapters and public buffered/streaming APIs implemented and tested offline.** The live xAI gate is **FAIL / BLOCKED** after two authorized failed runs; live OpenAI and manual listening remain unverified. See [live diagnostic evidence](specs/007-validation-and-xai-e2e.md). Milestone one remains open until the explicit xAI gate passes after QA/review (bead `speech-vqx.11`). No PyPI release or full upstream parity is claimed. See [specs](specs/README.md).
+**Status: milestone one complete.** Both providers' buffered/streaming APIs have offline coverage; real xAI buffered **and** streamed WAV checks **PASS** on `3adfb10` (2026-09-30). Saved audio is valid, nonsilent mono signed 16-bit PCM at 24 kHz: buffered **6.0701667 s**, streamed **6.0705 s**, at ignored `artifacts/smoke/xai/buffered.wav` and `streamed.wav`. Live OpenAI remains **UNVERIFIED** (key absent), manual listening **NOT DONE**, and STT deferred. No PyPI release or full upstream parity is claimed. See [validation evidence](specs/007-validation-and-xai-e2e.md) and [scope](specs/README.md).
+
+Verified offline: **108 tests**, **13 fully offline hooks**, and **104 runtime tests against clean noneditable wheels on Python 3.11 and 3.14**. Exact setup and provenance are recorded in the validation evidence; these are not live OpenAI or listening checks.
 
 Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only direct runtime dependency. No provider SDK, Node runtime, hosted proxy, or audio decoder is needed.
 
@@ -19,9 +21,9 @@ uv sync --frozen --no-dev --python 3.11
 # Set your own key locally; never commit it:
 export XAI_API_KEY="your-xai-key"
 # export OPENAI_API_KEY="your-openai-key"
-uv run --frozen --no-dev python smoke/run.py                # all configured providers
-uv run --frozen --no-dev python smoke/run.py --provider xai # explicitly require xAI
-# uv run --frozen --no-dev python smoke/run.py --provider openai
+# Paid: one buffered + one streamed request, no retries:
+uv run --frozen --no-dev python smoke/run.py --provider xai
+# Alternative: --provider openai (requires OPENAI_API_KEY)
 ```
 
 Windows PowerShell equivalents:
@@ -33,12 +35,12 @@ git checkout feat/two-provider-tts
 uv sync --frozen --no-dev --python 3.11
 $env:XAI_API_KEY = "your-xai-key"
 # $env:OPENAI_API_KEY = "your-openai-key"
-uv run --frozen --no-dev python smoke/run.py
+# Paid: one buffered + one streamed request, no retries:
 uv run --frozen --no-dev python smoke/run.py --provider xai
-# uv run --frozen --no-dev python smoke/run.py --provider openai
+# Alternative: --provider openai (requires OPENAI_API_KEY)
 ```
 
-**Explicit runner execution spends API credits.** Each selected provider gets at most two sequential synthesis requests: fixed short text, `eve` (xAI, language `en`) or `alloy` (OpenAI), WAV at 24 kHz, no retries, 60-second network-phase timeouts and a 90-second overall deadline per check. Import, `--help`, offline tests and CI never synthesize speech. No voice/model discovery calls are made.
+**Explicit runner execution spends API credits.** The xAI command above runs exactly two short synthesis checks on success (one buffered, one streamed), bounded to at most two sequential requests with `max_retries=0`. Omitting `--provider` runs all configured providers; each selected provider gets at most two requests: fixed short text, `eve` (xAI, language `en`) or `alloy` (OpenAI), WAV at 24 kHz, no retries, 60-second network-phase timeouts and a 90-second overall deadline per check. Import, `--help`, offline tests and CI never synthesize speech. No voice/model discovery calls are made.
 
 Missing keys fail preflight with exit **2**, before files or HTTP. Default mode visibly marks missing providers **NOT RUN**; explicit missing-provider selection is an error. All selected checks passing gives **0**; any ordinary request/audio/file failure gives **1** and remaining checks continue. Cancellation/Ctrl-C propagates nonzero. No `.env` loader is used.
 

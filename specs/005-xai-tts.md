@@ -1,6 +1,6 @@
 # 005 — xAI text-to-speech
 
-Status: adapter implemented and checked offline through both public paths; live xAI **FAIL / BLOCKED** after two failed runner invocations. The single private diagnostic isolated a valid WAV's unknown-length header; the precise `speech-vqx.26` fix passes offline, not the live gate. `speech-vqx.11` awaits final buffered + streamed re-verification. Depends on [002](002-api-and-package.md) and [003](003-http-and-errors.md). Required live completion gate: [007](007-validation-and-xai-e2e.md).
+Status: adapter implemented with offline coverage; real xAI buffered **and** streamed WAV **PASS** on `3adfb10` (2026-09-30). Both saved files are valid, nonsilent mono signed 16-bit PCM at 24 kHz: buffered 6.0701667 s, streamed 6.0705 s, at ignored `artifacts/smoke/xai/buffered.wav` and `streamed.wav`. The precise unknown-length-header fix is confirmed on both live paths. Milestone one is complete; manual listening is **NOT DONE**, STT deferred, live OpenAI **UNVERIFIED** (key absent), and no PyPI release/full parity is claimed. Depends on [002](002-api-and-package.md) and [003](003-http-and-errors.md). Evidence and historical attempts: [007](007-validation-and-xai-e2e.md).
 
 ## Deliverables
 
@@ -51,7 +51,7 @@ Supported rates: **8,000, 16,000, 22,050, 24,000, 44,100, 48,000 Hz**. Keep expl
 - MP3 bit rates: 32,000, 64,000, 96,000, 128,000, 192,000 bps. Reject bit-rate fields on non-MP3 output instead of silently retaining a contradictory option. Any confirmed codec/rate restrictions from current docs/live checks must become validation cases.
 - Preserve received audio bytes. Compare response MIME against the validated codec; allow generic/missing MIME and documented aliases. Bare PCM gains the effective requested rate. JSON/HTML/SSE or conflicting audio MIME is a terminal contract error.
 - Empty buffered response uses shared retry classification. Streamed emptiness is handled by 006 without replay.
-- Offline smoke validation additionally recognizes the observed unknown-length WAV pair: data size `0x7fffffff`, RIFF size `0x80000023` (data + 36), only when stdlib `wave` locates PCM at byte 44. Existing `0xffffffff` support remains; other finite data declarations must match actual PCM bytes. Both sentinel forms still require bounded, aligned, nonempty, nonsilent mono PCM16 at 24 kHz with actual duration strictly between 0 and 60 seconds. This is narrow captured-header evidence, not a general xAI format promise or a passed live two-path gate (`speech-vqx.26`).
+- Offline smoke validation additionally recognizes the observed unknown-length WAV pair: data size `0x7fffffff`, RIFF size `0x80000023` (data + 36), only when stdlib `wave` locates PCM at byte 44. Existing `0xffffffff` support remains; other finite data declarations must match actual PCM bytes. Both sentinel forms still require bounded, aligned, nonempty, nonsilent mono PCM16 at 24 kHz with actual duration strictly between 0 and 60 seconds. This is narrow captured-header evidence, now confirmed by both live WAV paths in [007](007-validation-and-xai-e2e.md), not a general xAI format promise.
 
 ## Acceptance checks
 
@@ -74,4 +74,4 @@ Current documentation reviewed 2026-09-30:
 
 The guide explicitly describes POST as unary/server-streamed and separately describes bidirectional WebSocket TTS. We only consume the POST audio body; streaming does **not** accept incremental text input or provide a realtime voice-agent session.
 
-Live validation must still verify response headers/defaults and codec/rate restrictions. The guide and REST reference differ on latency optimization levels, and the REST page's generic response schema emphasizes the timestamp envelope while its default examples return binary audio. Keep timestamp mode rejected; the real buffered/streamed WAV E2E is the verification gate for binary behavior.
+Live WAV 24 kHz binary behavior and the observed sentinel headers are verified in 007; other defaults/codecs/rates remain covered offline, not exhaustively verified live. The guide and REST reference differ on latency optimization levels, and the REST page's generic response schema emphasizes the timestamp envelope while its default examples return binary audio. Keep timestamp mode rejected; the real buffered/streamed WAV E2E is the verification gate for binary behavior.

@@ -1,6 +1,6 @@
 # 003 — HTTP lifecycle, errors, and retries
 
-Status: implemented with offline lifecycle/error/retry checks; live verification remains pending 007. Depends on [002](002-api-and-package.md). Used by buffered generation and streaming for both providers.
+Status: implemented with offline lifecycle/error/retry checks; live xAI buffered + streamed WAV passed on `3adfb10` ([007](007-validation-and-xai-e2e.md)). Retry and failure classifications remain covered by deterministic offline tests, not inferred from live success. Depends on [002](002-api-and-package.md). Used by buffered generation and streaming for both providers.
 
 ## Deliverables
 

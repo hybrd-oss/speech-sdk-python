@@ -1,6 +1,6 @@
 # 008 — Clone-and-run provider smoke tests
 
-Status: runner and offline checks implemented; live xAI gate **FAIL / BLOCKED** after two authorized failed runs (`speech-vqx.11` / `speech-vqx.21`), with [diagnostic evidence in 007](007-validation-and-xai-e2e.md). Live OpenAI and manual listening remain unverified. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md). Used by the validation gate in [007](007-validation-and-xai-e2e.md).
+Status: runner and offline checks implemented; live xAI buffered + streamed WAV **PASS** on `3adfb10` (2026-09-30), completing milestone one. Valid, nonsilent mono PCM16/24 kHz artifacts: ignored `artifacts/smoke/xai/buffered.wav` (6.0701667 s) and `streamed.wav` (6.0705 s). Live OpenAI is **UNVERIFIED** (key absent) with offline provider/runner coverage; manual listening **NOT DONE**, STT deferred, no PyPI release/full parity claimed. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md). Final evidence and historical attempts: [007](007-validation-and-xai-e2e.md).
 
 ## Goal
 
@@ -28,12 +28,11 @@ uv sync --frozen --no-dev --python 3.11
 export XAI_API_KEY="your-xai-key"
 # export OPENAI_API_KEY="your-openai-key"
 
-# Runs only providers with nonblank configured keys:
-uv run --frozen --no-dev python smoke/run.py
-
+# Paid: exactly two short checks on success, at most two requests, no retries.
 # Explicit provider: missing key is an error, not a skip:
 uv run --frozen --no-dev python smoke/run.py --provider xai
-uv run --frozen --no-dev python smoke/run.py --provider openai
+# Alternative: --provider openai (requires OPENAI_API_KEY)
+# Omit --provider only to run all providers with configured keys.
 ```
 
 Windows PowerShell uses the same clone, uv sync and uv run commands; set keys with `$env:XAI_API_KEY = "your-xai-key"` and `$env:OPENAI_API_KEY = "your-openai-key"` instead of POSIX `export`. See the [README PowerShell setup](../README.md#clone-install-run). Do not add `python-dotenv`: standard environment variables suffice. Never commit keys or include real keys in screenshots/reports. An `.env` file alone is not automatically loaded.

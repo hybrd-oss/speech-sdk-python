@@ -1,6 +1,6 @@
 # 002 — Python API and package
 
-Status: implemented with offline public API/package checks; live provider verification remains pending [007](007-validation-and-xai-e2e.md). Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
+Status: implemented with offline public API/package checks; the required live xAI buffered + streamed WAV gate passed on `3adfb10`, as recorded in [007](007-validation-and-xai-e2e.md). Live OpenAI remains unverified. Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
 
 ## Deliverables
 

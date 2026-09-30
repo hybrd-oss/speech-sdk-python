@@ -1,6 +1,6 @@
 # 009 — Strict development and public-repository baseline
 
-Status: implemented baseline; provider APIs and smoke tests now implemented and checked offline. Live gate is **FAIL / BLOCKED** after two failed runner invocations in [007](007-validation-and-xai-e2e.md); the single private diagnostic isolated a valid WAV header and `speech-vqx.26` passes offline, but final buffered + streamed re-verification remains outstanding. Requested before starting 002–008 SDK work.
+Status: baseline implemented; milestone one complete. [007](007-validation-and-xai-e2e.md) records live xAI buffered + streamed WAV **PASS** on `3adfb10` (2026-09-30), **108 offline tests**, **13 fully offline hooks** and **104 clean-wheel runtime tests on Python 3.11/3.14**. Live OpenAI is **UNVERIFIED** (key absent), manual listening **NOT DONE**, STT deferred; no PyPI release/full parity is claimed. This baseline was requested before starting 002–008 SDK work.
 
 ## Delivered
 
@@ -20,7 +20,7 @@ Status: implemented baseline; provider APIs and smoke tests now implemented and 
 - All 13 hooks, including Ruff lint/format, strict mypy, Vulture, complexity, Semgrep strict local validation/rule tests and security scan, and offline unit tests, pass as a single `prek run --all-files` invocation. After installation, `UV_OFFLINE=1` and OS network denial permit local processes/cache use while forbidding network access.
 - Injected bad typing, unused code, insecure TLS, excess complexity, and syntax errors produce nonzero exits. Safe Semgrep fixtures remain clean.
 - sdist/wheel build; clean wheel installation imports outside the editable checkout; LICENSE, README metadata and `py.typed` are included and runtime requirements are locked (`httpx` after SDK implementation).
-- No upstream speech behavior is claimed verified by tooling checks. xAI E2E remains required by 007 and **FAIL / BLOCKED**, awaiting final buffered + streamed re-verification; the offline sentinel fix is not a live pass.
+- Tooling checks alone do not verify upstream speech behavior. The required xAI E2E in 007 now passes both live paths; that separate live evidence, not the offline sentinel fix alone, completes the gate.
 
 ## Boundaries
 
@@ -28,7 +28,11 @@ Python 3.11 is the shared tool environment to avoid coupling Semgrep/platform to
 
 No release automation, worktree orchestration, custom lint framework, or hosted security dashboard is part of this baseline. Provider implementations were delivered subsequently under 004/005, not by the baseline.
 
-## Local verification
+## Current verification summary
+
+Final 2026-09-30 evidence is in [007](007-validation-and-xai-e2e.md): 108 offline tests and 104 clean noneditable-wheel runtime tests on each of Python 3.11.12/3.14.7. The full 3.14 suite reused the existing 3.11 development site-packages for four Radon checks; the runtime-only wheels had no Radon. All 13 hooks passed fully offline on the exact reviewed pre-merge tree. Hosted PR #4 CI [36782577660](https://github.com/hybrd-oss/speech-sdk-python/actions/runs/36782577660) for `3adfb10` is reported green by the orchestrator, not independently fetched here and not live evidence. The feature includes `main`; PR #4 targets `main`, not a claim that it has merged. No validation rerun was performed for this docs-only finalization.
+
+## Historical local verification
 
 Verified 2026-09-30 on Python 3.11: all prek gates pass; deliberate mypy/Ruff/Vulture/Radon/Semgrep violations fail; four complexity tests and all four Semgrep rule tests pass. sdist/wheel build, clean wheel import/type marker/runtime-requirement checks, and license/README attribution inspection pass. GitHub Actions syntax was checked with actionlint; a hosted CI run remains unverified until pushed.
 

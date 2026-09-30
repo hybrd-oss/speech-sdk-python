@@ -1,6 +1,6 @@
 # Contributing
 
-Both provider adapters and public APIs are implemented with offline checks. Smoke execution is explicitly paid/opt-in; the live xAI gate (`speech-vqx.11`) is **FAIL / BLOCKED** after two authorized failed runs. See [live diagnostic evidence](specs/007-validation-and-xai-e2e.md); live OpenAI and manual listening remain unverified. Status and intentional differences are in [specs/](specs/README.md).
+**Milestone one is complete:** both providers' public APIs have offline coverage, and real xAI buffered + streamed WAV checks **PASS** on `3adfb10` (2026-09-30). Verification includes **108 offline tests**, **13 fully offline hooks**, and **104 runtime tests against clean noneditable wheels on Python 3.11 and 3.14**. See [validation evidence](specs/007-validation-and-xai-e2e.md) for exact setup and provenance. Live OpenAI is **UNVERIFIED** (key absent), manual listening **NOT DONE**, and STT deferred; no PyPI release or full upstream parity is claimed. Smoke execution remains explicitly paid/opt-in. Status and intentional differences are in [specs/](specs/README.md).
 
 ## Setup
 
@@ -88,4 +88,4 @@ cp -r smoke /tmp/speech-sdk-installed/
 
 The wheel install must follow hash-required runtime export/install, not replace it with an isolated `--no-deps` wheel install. Inspect sdist/wheel contents for license, attribution metadata, `py.typed`, runtime modules, and absence of secrets/audio/test artifacts. Validate CI edits with `actionlint .github/workflows/checks.yml`; preserve read-only permissions and SHA pins.
 
-For clone/install, Windows keys and paid smoke commands see [README](README.md). Do not execute live xAI/OpenAI during ordinary contribution checks; the final live gate runs only after QA/review approval. Record date/ref/command, WAV properties, duration, paths and manual listening separately in [007](specs/007-validation-and-xai-e2e.md); offline passes do not close that gate.
+For clone/install, Windows keys and paid smoke commands see [README](README.md). Do not execute live xAI/OpenAI during ordinary contribution checks; any new paid verification requires explicit opt-in and a bounded request budget. The final xAI gate has passed; no rerun is needed for documentation changes. Record any future run's date/ref/command, WAV properties, duration, paths and manual listening separately in [007](specs/007-validation-and-xai-e2e.md); offline passes alone are not live evidence.
