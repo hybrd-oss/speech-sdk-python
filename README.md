@@ -10,9 +10,6 @@
 
 **[Quick start](#quick-start)** · **[Providers](#providers)** · **[Public API](#public-api)** · **[Development](#development)** · **[Upstream](#upstream-and-license)**
 
-Built on the original **[Speech SDK by Jellypod](https://github.com/Jellypod-Inc/speech-sdk)**.
-An independent HYBRD OSS port, not an official Jellypod release or affiliated with Jellypod.
-
 </div>
 
 The Jellypod team is cracked, and they made a [Speech SDK](https://github.com/Jellypod-Inc/speech-sdk) for TypeScript. But the Python folks should get to have some fun too.
@@ -20,6 +17,12 @@ The Jellypod team is cracked, and they made a [Speech SDK](https://github.com/Je
 So we did what anyone naturally does these days: pointed our agents to the repo and told them to port it to Python.
 
 No provider SDK, Node runtime, hosted proxy, or audio decoder is needed.
+
+----
+
+Built on the original **[Speech SDK by Jellypod](https://github.com/Jellypod-Inc/speech-sdk)**.
+An independent HYBRD OSS port, not an official Jellypod release or affiliated with Jellypod.
+
 
 ## Features
 
