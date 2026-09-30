@@ -1,6 +1,6 @@
 # 008 — Clone-and-run provider smoke tests
 
-Status: draft. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md). Used by the validation gate in [007](007-validation-and-xai-e2e.md).
+Status: runner and offline checks implemented; live clone-and-run xAI/OpenAI and listening not run/unverified (post-review gate `speech-vqx.11`). Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md). Used by the validation gate in [007](007-validation-and-xai-e2e.md).
 
 ## Goal
 
@@ -16,14 +16,14 @@ Anyone with Python and their own provider key can clone the repo, install it, an
 
 ## Clone-and-run contract
 
-Commands to deliver (not runnable until implementation):
+Implemented clone-and-run commands (checkout `feat/two-provider-tts` as in README until merged):
 
 ```sh
 git clone https://github.com/hybrd-oss/speech-sdk-python.git
 cd speech-sdk-python
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -e .
+python -m pip install .
 
 # Set either or both using your own credentials:
 export XAI_API_KEY="your-xai-key"

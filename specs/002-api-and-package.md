@@ -1,6 +1,6 @@
 # 002 — Python API and package
 
-Status: draft; package skeleton implemented in [009](009-quality-baseline.md), public contracts not yet implemented. Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
+Status: implemented with offline public API/package checks; live provider verification remains pending [007](007-validation-and-xai-e2e.md). Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
 
 ## Deliverables
 
@@ -11,7 +11,7 @@ Status: draft; package skeleton implemented in [009](009-quality-baseline.md), p
 
 ## Public contracts
 
-Proposed signatures to implement (type names are real targets, not placeholder runtime code):
+Implemented public signatures (ellipsis below abbreviates implementation):
 
 ```python
 async def generate_speech(
@@ -55,7 +55,7 @@ def stream_speech(...) -> AsyncContextManager[SpeechStream]: ...
 
 Standard-library tests cover defaults and configured model resolution, key precedence/blank keys, invalid identifiers, Unicode limits, whitespace validation without text mutation, invalid option values, and immutable caller mappings. These checks must run without opening a network connection.
 
-Package setup now exists as the 009 baseline without speech exports; introduce real public functions with the first vertical slice. Do not export stubs that return fake audio or raise `NotImplementedError` as finished work.
+Package setup and real speech exports are implemented. Do not export stubs that return fake audio or raise `NotImplementedError` as finished work.
 
 ## Reference
 

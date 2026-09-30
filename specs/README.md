@@ -1,6 +1,6 @@
 # Implementation specs
 
-Status: **SDK specs draft / not implemented; [009 baseline](009-quality-baseline.md) implemented**. Start with [001: scope](001-port-scope.md). These specs define milestone one; they do not claim current functionality.
+Status: **002–006 adapters/public APIs and 008 smoke runner implemented with offline checks; 009 baseline implemented. 007 live gate NOT RUN / UNVERIFIED.** Milestone one remains open pending QA/review (.10) and explicit live validation (.11). Start with [001: scope](001-port-scope.md). Live OpenAI and manual listening are also unverified.
 
 | Spec | Work | Depends on |
 | --- | --- | --- |
