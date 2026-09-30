@@ -36,7 +36,9 @@ jobs:
       - name: Verify clean wheel installation
         shell: bash
         run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/speech-sdk-runtime.txt
           uv venv /tmp/speech-sdk-wheel --python 3.11
+          uv pip install --python /tmp/speech-sdk-wheel/bin/python --require-hashes -r /tmp/speech-sdk-runtime.txt
           uv pip install --python /tmp/speech-sdk-wheel/bin/python --no-deps dist/*.whl
           cd /tmp
           /tmp/speech-sdk-wheel/bin/python -c 'from importlib.resources import files; import speech_sdk; assert files(speech_sdk).joinpath("py.typed").is_file()'
