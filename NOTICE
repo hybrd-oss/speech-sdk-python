@@ -1,0 +1,12 @@
+Speech SDK for Python
+A HYBRD OSS project.
+
+This project plans an independent Python port of Jellypod, Inc.'s Speech SDK:
+https://github.com/Jellypod-Inc/speech-sdk
+Reference commit: 0e5a670324fb7be51a22708fe08bd7cc50f09f99
+
+Upstream attribution: Copyright 2026 Jellypod, Inc.
+Upstream license: Apache License, Version 2.0.
+
+The initial repository contains planning documentation, not translated SDK code.
+This project is not an official Jellypod release or affiliated with Jellypod.
