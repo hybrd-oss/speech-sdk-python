@@ -61,6 +61,7 @@ def body(request: PreparedRequest) -> dict[str, object]:
 
 class XAIContractTests(unittest.TestCase):
     def test_default_exact_request_and_model(self) -> None:
+        value: object
         provider: Provider = XAIProvider(api_key="fixture-key")
         default = provider.model()
         self.assertIs(default.provider, provider)
@@ -86,11 +87,54 @@ class XAIContractTests(unittest.TestCase):
             request.timeout.as_dict(), dict.fromkeys(("connect", "read", "write", "pool"), 60)
         )
         self.assertEqual(request.max_retries, 2)
-        for value in ("", "unknown", "xai/grok-tts", 1, True):
+        for value in ("", " \n\t", 1, True, [], {}):
             with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
                 provider.model(cast(str, value))
             with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
                 prepared(model_id=cast(str, value))
+
+    def test_model_subclasses_rejected_before_client(self) -> None:
+        class Overridden(str):
+            def strip(self, _chars: str | None = None, /) -> str:
+                return "nonblank"
+
+            def partition(self, _sep: str, /) -> tuple[str, str, str]:
+                return ("xai", "/", "rewritten")
+
+        with patch("speech_sdk._http.httpx.AsyncClient") as factory:
+            for model in (
+                Overridden(" \n\t"),
+                Overridden("unknown/original"),
+                Overridden("future"),
+            ):
+                with self.subTest(model=model, entry="model"), self.assertRaises(TypeError):
+                    XAIProvider().model(model)
+                with self.subTest(model=model, entry="prepare"), self.assertRaises(TypeError):
+                    prepared(model_id=model)
+            factory.assert_not_called()
+
+    def test_generic_models_are_metadata_only(self) -> None:
+        for model in (
+            "unknown",
+            "xai/grok-tts",
+            "grok-tts-2026-10-01",
+            "org/namespace/future-tts",
+            " future\nmodel ",
+            "/",
+            " \t/ \n",
+        ):
+            with self.subTest(model=model):
+                self.assertEqual(XAIProvider().model(model).model_id, model)
+                request = prepared(model_id=model, options={"speed": 1.0})
+                self.assertEqual(request.model, model)
+                self.assertEqual(
+                    body(request),
+                    {"text": "Hello!", "voice_id": "eve", "language": "auto", "speed": 1.0},
+                )
+                with self.assertRaises(ValueError):
+                    prepared(model_id=model, options={"model": model})
+        with self.assertRaises(TypeError):
+            prepared(model_id=cast(str, None))
 
     def test_verbatim_canonical_fields_and_immutable_options(self) -> None:
         options: dict[str, object] = {

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "speech-sdk-python"
 version = "0.0.0"
-description = "Independent Python speech SDK port — implementation pending"
+description = "Async OpenAI and xAI speech generation and managed streaming over direct HTTP"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

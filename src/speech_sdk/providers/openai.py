@@ -11,13 +11,15 @@ from .._validation import (
     endpoint_url,
     prepare_request,
     resolve_api_key,
+    validate_model_id,
     validate_text_voice,
 )
 from ..types import AudioOutput, PreparedRequest, ResolvedModel
 
-__all__ = ["OpenAIProvider"]
+__all__ = ["DEFAULT_OPENAI_MODEL", "OPENAI_MODELS", "OpenAIProvider"]
 
-_MODELS = ("gpt-4o-mini-tts", "tts-1", "tts-1-hd")
+OPENAI_MODELS = ("gpt-4o-mini-tts", "tts-1", "tts-1-hd")
+DEFAULT_OPENAI_MODEL = OPENAI_MODELS[0]
 _MEDIA_TYPES = {
     "mp3": "audio/mpeg",
     "wav": "audio/wav",
@@ -92,7 +94,7 @@ def _instructions(canonical: str | None, options: dict[str, object], model: str)
     if len(combined) > 4096:
         raise ValueError("Instructions exceed 4096 characters")
     if combined:
-        if model != "gpt-4o-mini-tts":
+        if model in ("tts-1", "tts-1-hd"):
             raise ValueError("This model does not support instructions")
         options["instructions"] = combined
 
@@ -132,9 +134,7 @@ class OpenAIProvider:
         endpoint_url(self.base_url, "audio/speech")
 
     def model(self, model_id: str | None = None) -> ResolvedModel:
-        selected = _MODELS[0] if model_id is None else model_id
-        if not isinstance(selected, str) or selected not in _MODELS:
-            raise ValueError("Unknown OpenAI speech model")
+        selected = validate_model_id(DEFAULT_OPENAI_MODEL if model_id is None else model_id)
         return ResolvedModel(provider=self, model_id=selected)
 
     def prepare(
@@ -151,7 +151,7 @@ class OpenAIProvider:
         max_retries: int,
         headers: Mapping[str, str] | None,
     ) -> PreparedRequest:
-        model = self.model(model_id).model_id
+        model = validate_model_id(model_id)
         input_chars = validate_text_voice(text, voice, 4096)
         body = copy_options(provider_options)
         _validate_option_names(body)

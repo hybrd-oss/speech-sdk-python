@@ -1,6 +1,6 @@
 # 006 — Context-managed HTTP audio streaming
 
-Status: draft. Depends on [003](003-http-and-errors.md), [004](004-openai-tts.md), and [005](005-xai-tts.md).
+Status: implemented with offline streaming/backpressure/cleanup checks, including pending-read invalidation on context exit. Live xAI buffered + streamed WAV **PASS** on `3adfb10` (2026-09-30); milestone one is complete. The streamed artifact is valid, nonsilent mono PCM16 at 24 kHz, 6.0705 s, at ignored `artifacts/smoke/xai/streamed.wav`. Live OpenAI is **UNVERIFIED** (key absent), manual listening **NOT DONE**, and STT deferred. See [007](007-validation-and-xai-e2e.md) for evidence. Depends on [003](003-http-and-errors.md), [004](004-openai-tts.md), and [005](005-xai-tts.md).
 
 ## Deliverables
 

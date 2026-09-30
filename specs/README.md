@@ -1,6 +1,8 @@
 # Implementation specs
 
-Status: **SDK specs draft / not implemented; [009 baseline](009-quality-baseline.md) implemented**. Start with [001: scope](001-port-scope.md). These specs define milestone one; they do not claim current functionality.
+Status: **milestone one complete.** 002–006 adapters/public APIs, 008 smoke runner and 009 baseline are implemented. [007 live gate](007-validation-and-xai-e2e.md): xAI buffered **and** streamed WAV **PASS** on `3adfb10` (2026-09-30); valid, nonsilent mono signed 16-bit PCM at 24 kHz, **6.0701667 s** buffered and **6.0705 s** streamed, saved to ignored `artifacts/smoke/xai/buffered.wav` and `streamed.wav`. Historical failures remain in 007, not current status.
+
+Verified: **108 offline tests**, **13 fully offline hooks**, **104 runtime tests against clean noneditable wheels on Python 3.11/3.14**; exact environment/provenance is in 007. OpenAI has offline coverage but is **live UNVERIFIED** (key absent); manual listening **NOT DONE**, STT deferred. No PyPI release or full upstream parity is claimed. Start with [001: scope](001-port-scope.md).
 
 | Spec | Work | Depends on |
 | --- | --- | --- |
@@ -25,12 +27,13 @@ Each implementation ships its own offline checks; 007 integrates and verifies th
 
 ## Completion gate
 
-Milestone one is complete only after the offline suite and package checks pass **and a real xAI E2E run passes** through the public API, for both buffered and streamed WAV. The clone-and-run smoke suite covers both providers; its explicit xAI run is the E2E gate. Missing xAI credentials mean **blocked/unverified**, not complete. Live OpenAI verification is desirable but not the minimum completion gate.
+Milestone one's gate is **satisfied**: offline suite/package checks and a real xAI E2E passed through the public API for both buffered and streamed WAV. The clone-and-run smoke suite covers both providers; its explicit xAI run is the E2E gate. Future missing-key/skipped runs are not passing evidence and do not replace the recorded result. Live OpenAI verification remains desirable but is not the minimum completion gate.
 
 ## Decisions and intentional differences
 
 - Python 3.11+, async-first, `httpx` as the only initial runtime dependency; standard-library `unittest` checks.
 - Binary HTTP responses only. No provider SDKs, WebSocket transport, Node runtime, or audio-processing dependency.
+- Generic nonblank model strings, preserved verbatim; exported model tuples/default strings are conveniences, not whitelists. Unknown providers still fail locally. OpenAI forwards exact IDs and unknown-model instructions; xAI IDs are metadata only, not REST backend selectors. Automatic error summaries omit untrusted model IDs.
 - Current xAI docs specify 60,000 input characters; pinned upstream uses 15,000. Use 60,000 and record this as a provider-contract update, not upstream parity.
 - xAI's normal wire default is 24 kHz. Pinned upstream's output helper selects 48 kHz for explicit WAV/PCM without a rate. Initial Python output defaults to 24 kHz; explicit rates remain configurable.
 - Input text is passed verbatim. Upstream OpenAI expressive-tag extraction, pronunciation mapping, chunking, and alignment remain deferred.
@@ -42,6 +45,6 @@ Milestone one is complete only after the offline suite and package checks pass *
 
 Upstream reference: [`0e5a670324fb7be51a22708fe08bd7cc50f09f99`](https://github.com/Jellypod-Inc/speech-sdk/tree/0e5a670324fb7be51a22708fe08bd7cc50f09f99).
 
-Provider documentation reviewed on **2026-09-30**; recheck before implementing. Live checks are still required. Specific references and unresolved verification items live in the provider specs.
+Provider documentation reviewed on **2026-09-30**; recheck before changing contracts. Required live xAI WAV checks passed; other codecs/rates/options are not exhaustively live-verified. Specific references and remaining verification items live in the provider specs.
 
 Broader provider/audio/conversation parity stays in [001](001-port-scope.md). Do not scaffold that work during milestone one.

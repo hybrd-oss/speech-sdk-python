@@ -26,6 +26,14 @@ def resolve_api_key(
     return key
 
 
+def validate_model_id(value: object) -> str:
+    if type(value) is not str:
+        raise TypeError("Model identifier must be a string")
+    if not value.strip():
+        raise ValueError("Model identifier must be nonblank")
+    return value
+
+
 def validate_text_voice(text: object, voice: object, limit: int) -> int:
     if not isinstance(text, str) or not isinstance(voice, str):
         raise TypeError("Text and voice must be strings")

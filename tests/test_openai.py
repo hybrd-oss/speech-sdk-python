@@ -85,16 +85,69 @@ class OpenAITests(unittest.TestCase):
     def test_bad_models(self) -> None:
         for model in (
             "",
-            "unknown",
-            "openai/tts-1",
-            "tts-1/",
-            "gpt-4o-mini-tts-2025-12-15",
+            " \n\t",
             cast(str, 1),
+            cast(str, True),
+            cast(str, []),
+            cast(str, {}),
         ):
             with self.subTest(model=model), self.assertRaises((ValueError, TypeError)):
                 OpenAIProvider().model(model)
             with self.subTest(prepare=model), self.assertRaises((ValueError, TypeError)):
                 self.prepare(model=model)
+
+    def test_model_subclasses_rejected_before_client(self) -> None:
+        class Overridden(str):
+            def strip(self, _chars: str | None = None, /) -> str:
+                return "nonblank"
+
+            def partition(self, _sep: str, /) -> tuple[str, str, str]:
+                return ("openai", "/", "rewritten")
+
+        with patch("speech_sdk._http.httpx.AsyncClient") as factory:
+            for model in (
+                Overridden(" \n\t"),
+                Overridden("unknown/original"),
+                Overridden("future"),
+            ):
+                with self.subTest(model=model, entry="model"), self.assertRaises(TypeError):
+                    OpenAIProvider().model(model)
+                with self.subTest(model=model, entry="prepare"), self.assertRaises(TypeError):
+                    self.prepare(model=model)
+            factory.assert_not_called()
+
+    def test_generic_models_preserved_with_native_options(self) -> None:
+        for model in (
+            "unknown",
+            "openai/tts-1",
+            "tts-1/",
+            "gpt-4o-mini-tts-2025-12-15",
+            "org/namespace/future-tts",
+            " future\nmodel ",
+            "/",
+            " \t/ \n",
+        ):
+            with self.subTest(model=model):
+                self.assertEqual(OpenAIProvider().model(model).model_id, model)
+                request = self.prepare(
+                    model=model,
+                    instructions=" canonical ",
+                    options={"model": "ignored", "instructions": " native ", "speed": 1.5},
+                )
+                self.assertEqual(request.model, model)
+                self.assertEqual(
+                    self.body(request),
+                    {
+                        "model": model,
+                        "input": "Hello from Python!",
+                        "voice": "alloy",
+                        "instructions": " canonical \n\n native ",
+                        "speed": 1.5,
+                        "stream_format": "audio",
+                    },
+                )
+        with self.assertRaises(TypeError):
+            self.prepare(model=cast(str, None))
 
     def test_url_headers_and_shared_settings(self) -> None:
         headers = {"Authorization": "ignored", "CONTENT-TYPE": "ignored", "X-Trace": "fixture"}

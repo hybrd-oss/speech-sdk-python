@@ -1,6 +1,6 @@
 # 007 — Validation and the live xAI completion gate
 
-Status: draft. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md), with the smoke runner from [008](008-clone-and-run-smoke-tests.md). **A passing real xAI E2E run is the minimum end goal, not an optional future smoke test.**
+Status: **final validation PASS / DONE** on `3adfb10da5ed5f7afa20c271f3f74797a302aa08`: offline/build/clean-wheel checks and real xAI buffered + streamed WAV checks passed. The precise `speech-vqx.26` unknown-length-header fix is now confirmed on both live paths; `speech-vqx.19` and `speech-vqx.11` are complete. Historical failed attempts and the private diagnostic remain below. Manual listening is NOT DONE; live OpenAI is NOT RUN (key absent); STT is deferred. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md), with the smoke runner from [008](008-clone-and-run-smoke-tests.md). **A passing real xAI E2E run is the minimum end goal, not an optional future smoke test.**
 
 ## Deliverables
 
@@ -15,17 +15,17 @@ Status: draft. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [
 Offline, no keys/network:
 
 ```sh
-python -m pip install -e .
-python -m unittest discover -s tests -p 'test_*.py'
+uv sync --frozen --python 3.11
+uv run --frozen python -m unittest discover -s tests -v
 ```
 
 Live xAI, intentionally paid (key already set in the shell):
 
 ```sh
-python smoke/run.py --provider xai
+uv run --frozen --no-dev python smoke/run.py --provider xai
 ```
 
-Default test discovery never executes smoke calls, even with configured keys. **Explicit xAI selection with missing/blank `XAI_API_KEY` fails configuration, not a skipped/passing test.** Authentication/network/rate failures fail the explicit run. Running `python smoke/run.py` without selection checks whichever keys are configured; unconfigured providers are visibly not run.
+Default test discovery never executes smoke calls, even with configured keys. **Explicit xAI selection with missing/blank `XAI_API_KEY` fails configuration, not a skipped/passing test.** Authentication/network/rate failures fail the explicit run. Running `uv run --frozen --no-dev python smoke/run.py` without selection checks whichever keys are configured; unconfigured providers are visibly not run.
 
 ## E2E scenario
 
@@ -74,7 +74,7 @@ Acceptance evidence must include:
 
 ## Installation and CI
 
-- Build sdist/wheel with the conventional backend and a dev-only build frontend (`python -m build`); no custom packaging logic.
+- Build sdist/wheel with the conventional backend and a dev-only build frontend (`uv run --frozen python -m build`); no custom packaging logic.
 - In a clean virtual environment, install the wheel, import public exports, and run at least the offline public API checks against that installed artifact. Do not accidentally import from an editable checkout.
 - Verify LICENSE, README attribution/metadata, `py.typed`, and runtime modules are included; no secrets/audio/test artifacts in releases.
 - GitHub Actions runs offline tests on Python 3.11 and the newest stable supported Python version selected at implementation time, with read-only permissions and no API secrets. Build/install verification can run on one matrix entry.
@@ -94,4 +94,146 @@ Without keys or provider availability, report blocked/unverified and leave the c
 
 ## Validation results
 
-SDK validation not run: repository currently has specifications and the [009 development baseline](009-quality-baseline.md), not speech APIs. Baseline tooling/tests/package checks do not verify provider behavior. Provider offline tests, live xAI, manual listening, and live OpenAI are all unverified.
+2026-09-30, final validation bead `speech-vqx.11`, shared `feat/two-provider-tts`, tested SDK + smoke code commit **`e8c9f0e73d58316a40381ad7998aa38921e6d3ff`**. Independent QA/review `.10`/`.16` and fixes `.17`/`.18` were closed before execution. HEAD remained unchanged throughout; the local `origin/feat/two-provider-tts` tracking ref matched HEAD. Pushed PR #4 atop provider PR #3 is user-provided provenance, not independently verified by a remote fetch or fresh clone.
+
+### Final offline/build/install checks — PASS
+
+- Full offline suite: **94 tests PASS** on Python 3.11.12, with provider keys and `PYTHONPATH` removed and HTTPX/socket network tripwires.
+- Fresh `python -m build` produced sdist and wheel version `0.0.0` in `/tmp/speech-vqx-11.ILMeyW/dist/`. Wheel runtime source bytes matched every current SDK module and `py.typed`; LICENSE and README attribution/dependency metadata were checked. Wheel excludes tests/smoke/audio/secrets; sdist includes setuptools-default source tests, not audio/secrets.
+- Fresh noneditable virtual environments on **Python 3.11.12 and 3.14.7** installed runtime dependencies using `uv export --frozen --no-dev --no-emit-project --format requirements-txt`, then hash-required installation, then the wheel with `--no-deps`. Version, exact installed source bytes, `py.typed`, noneditable distribution metadata and `site-packages` location outside the checkout were asserted.
+- Latest smoke script and seven SDK runtime test modules copied to a clean temporary directory: **90 runtime tests PASS on each Python version**, including all 16 smoke tests, without Radon/dev dependencies and with provider keys/`PYTHONPATH` removed and network tripwires.
+- Documented standard Python 3.14 venv + `python -m pip install .` setup reverified in a clean source snapshot: noneditable import PASS, smoke `--help` exit 0, explicit missing-key xAI exit 2, no artifacts. This is a snapshot install check, not a fresh remote clone.
+- Prior all-14-hook/actionlint evidence remains in `.9`/`.17`/`.18`; those tools were not rerun by `.11`. Windows setup and hosted CI were not executed/claimed here.
+
+### Authorized live xAI — FAIL / BLOCKED
+
+Exactly one runner invocation, from the repository cwd with inherited credentials and `PYTHONPATH` removed, using the fresh installed wheel rather than `.venv`/editable imports:
+
+```sh
+env -u PYTHONPATH /tmp/speech-vqx-11.ILMeyW/venv311/bin/python smoke/run.py --provider xai
+```
+
+UTC start **2026-09-30T19:53:44Z**, end **2026-09-30T19:53:46Z**; exit status **1**. The runner attempted both sequential public paths once, with fixed text, `eve`, language `en`, WAV 24 kHz, `max_retries=0`, network-phase timeout 60 seconds and overall timeout 90 seconds per check. Audited code bounds this to at most two real POST attempts; actual server receipt/count was not instrumented. No retries, reruns or additional provider probes were performed.
+
+Safe stdout, retained at `/tmp/speech-vqx-11.ILMeyW/live-stdout.txt` (exit status at `live-exit.txt`):
+
+```text
+xai/grok-tts buffered: FAIL (request/audio/file check)
+xai/grok-tts streamed: FAIL (request/audio/file check)
+```
+
+Neither `artifacts/smoke/xai/buffered.wav` nor `artifacts/smoke/xai/streamed.wav` was finalized; no partial WAV files remain. Thus there are **no live sample durations/byte counts/header integers or passing metadata assertions to report**. The safe runner summary intentionally omits exception/provider details and does not identify HTTP status or request/audio/file failure stage: **cause unclassified**, not evidence of a specific WAV protocol mismatch. No credential value, authorization/header dump, raw provider message/details or stderr was logged or retained. Credential variable presence alone was checked. Validation was not weakened; any further paid investigation requires renewed explicit authorization.
+
+Parented blocker **`speech-vqx.19`** now blocks `.11`, which remains **BLOCKED, not closed**. **Milestone live gate: NOT PASSED; no full-parity release claimed. Live OpenAI: NOT RUN (key absent). Manual listening: NOT DONE. STT: NOT RUN/deferred.** Only this validation-results section was edited; no artifacts/secrets were added and no commit/push was performed.
+
+### Authorized second xAI attempt (`speech-vqx.21`) — FAIL / BLOCKED
+
+2026-09-30, one additional bounded invocation explicitly authorized by the user, as recorded in `.19`'s comment. SDK provenance: **`e8c9f0e73d58316a40381ad7998aa38921e6d3ff`**, supplied checkpoint; no Git operations were performed. Runtime wheel source bytes were independently matched to every current SDK module and `py.typed`. Smoke diagnostics are the **uncommitted `.20` working-tree changes**, not part of that checkpoint. Tested `smoke/run.py` SHA-256: **`9387b54022ede0ab1deccd9cc73814642d9afaa3d4ad427723b7d08465b17880`**, checked again immediately before invocation. Fresh wheel SHA-256: **`fabc2e868bd559727b48fe0672c31dd0fd96b593c34391f26b1db1942d98b3d2`**.
+
+- Independent diagnostic inspection: phases come from local control flow; categories/cause labels use static trusted exact-type mappings; HTTP status is emitted only for an exact integer in 100–599. No exception message/repr, arbitrary class name, provider body, header, code, request ID or URL is intentionally formatted. TLS verification remains enabled. A concurrent review subsequently reported `.23`: untrusted exception cause accessors can raise during diagnostic formatting; the inspected mappings alone do not establish safety for arbitrary exceptions. This attempt's two allowlisted audio-validation summaries did not exhibit that escape; the outer capture also suppressed stderr and filtered stdout. The orchestrator's `.21` comment directs an offline `.23` fix without changing this tested script or extending the paid budget.
+- Current offline focused **22 tests PASS**, full **100 tests PASS**, with both provider keys and `PYTHONPATH` removed. Fresh conventional sdist/wheel build PASS. Frozen runtime requirements exported from `uv.lock` and installed with required hashes into a fresh Python **3.11.12** environment, followed by wheel installation with `--no-deps`; all setup ran with `UV_OFFLINE=1`. Noneditable distribution metadata, version `0.0.0`, outside-checkout `site-packages` import and exact installed runtime bytes PASS.
+- Current smoke and seven runtime test modules copied outside the checkout: **96 installed-wheel offline tests PASS twice**. The first installed test invocation exited 1; its failure detail was not retained/classified, so that initial invocation is not claimed green. The two subsequent offline-only reruns passed without source or dependency changes. `.20`'s prior all-hook evidence remains separate; no additional quality-hook run is claimed here.
+
+Exactly once, from the repository cwd, using the clean installed-wheel Python with inherited `XAI_API_KEY` and `PYTHONPATH` removed:
+
+```sh
+env -u PYTHONPATH /var/folders/sd/f3__p2814xv7kp3wgyk7pbrh0000gn/T/speech-vqx-21.3c31yhmj/venv/bin/python smoke/run.py --provider xai
+```
+
+UTC start **2026-09-30T20:22:33Z**, end **2026-09-30T20:22:36Z**; exit **1**. Both sequential checks used fixed short text, `eve`, language `en`, WAV 24 kHz, `max_retries=0`, 60-second network timeout and 90-second overall deadline each. Audited runner/SDK control flow bounds the invocation to at most two POST attempts, with redirects disabled; actual server receipt/count was not instrumented. No extra paid probes, retries or reruns occurred.
+
+Allowlisted safe stdout:
+
+```text
+xai/grok-tts buffered: FAIL (phase=audio-validation category=contract-error)
+xai/grok-tts streamed: FAIL (phase=audio-validation category=contract-error)
+```
+
+Both paths returned through synthesis and response-metadata validation, then failed local WAV validation **before artifact writing**. The exact WAV assertion/cause is not distinguishable from the approved category-only evidence; do not infer a specific header, truncation, sample-rate or silence defect. HTTP status and network-cause type were **not reported**, not inferred. Neither finalized WAV nor `.wav.part` exists for either mode, so there are no saved live sample properties/durations/counts to validate or claim passing. Validation was not weakened and TLS was not disabled.
+
+Evidence directory: `/var/folders/sd/f3__p2814xv7kp3wgyk7pbrh0000gn/T/speech-vqx-21.3c31yhmj/`; only filtered safe stdout in `live-stdout-safe.txt`, timestamps/exit/safe summaries in `live-result.json`, and tested smoke hash in `smoke-sha256.txt`. Live stderr was discarded, not retained; raw provider output and credential values were never printed or retained. Key presence only: xAI present, OpenAI absent.
+
+Next action: targeted **offline** review of `validate_wav` and its finite/sentinel-length, format, alignment, duration and nonsilence fixtures. This evidence does not justify an account/authentication action or an arbitrary WAV exemption. If existing fixtures cannot isolate the discrepancy, separately authorize any future bounded live capture of allowlisted numeric WAV properties/local validation subcategories; no further network action is authorized by this attempt.
+
+**`.21` execution/evidence task complete; `.19` remains unresolved/open and `.11` remains BLOCKED. Milestone live gate: NOT PASSED. Live OpenAI: NOT RUN. Manual listening: NOT DONE. STT: NOT RUN.** Only spec 007 results were appended; no SDK/smoke/README/dependency edits, Git operations or worktrees.
+
+### Authorized single private numeric diagnostic (`speech-vqx.24`) — mismatch isolated, gate BLOCKED
+
+2026-09-30 **20:31:33.210262–20:31:34.494948 UTC**: exactly one public `generate_speech` invocation, `xai/grok-tts`, smoke `TEXT`, `eve`, language `en`, `AudioOutput("wav", 24000)`, `max_retries=0`, network timeout 60 seconds inside `asyncio.timeout(90)`. User explicitly approved one request and private raw-byte capture in the task instruction; the required `ask_question` confirmation was attempted once but unavailable in non-interactive mode (not additional consent). No streamed call, rerun, final smoke, other provider call or retry. Server receipt count was not instrumented; SDK sends at most one POST with redirects disabled.
+
+Command from `/Users/mattruiters/Code/Projects/speech-sdk-python`:
+
+```sh
+umask 077
+env -u PYTHONPATH /var/folders/sd/f3__p2814xv7kp3wgyk7pbrh0000gn/T/speech-vqx-21.3c31yhmj/venv/bin/python -B /tmp/speech-vqx-24-diagnostic/diagnostic.py 2>/dev/null
+```
+
+Existing noneditable `.21` wheel SHA-256 **`fabc2e868bd559727b48fe0672c31dd0fd96b593c34391f26b1db1942d98b3d2`** verified; all ten installed runtime files matched wheel and current source bytes, outside-checkout `site-packages`, editable metadata absent. SDK checkpoint **`e8c9f0e73d58316a40381ad7998aa38921e6d3ff`** remains supplied provenance, not Git-reverified. Current smoke including `.23` fix SHA-256 **`712eacca981e75d70ad12105301b20d52fd51f4bf5d21e5ef95501ee55e6f938`**; untracked temporary diagnostic SHA-256 **`55b482fd22f184517834d174954f7f10819222f1e7da6985b6feb9fd77796049`**. Temporary script contains a synthetic stdlib parser check and exclusive once-only invocation guard; no generated script tracked.
+
+Raw returned bytes saved **before validation**, exclusively created mode **0600**, at ignored **`artifacts/smoke/xai/diagnostic.wav`**. This is private diagnostic audio, **not a final PASS artifact; never Git-add**. Safe numeric evidence/provenance and temporary command script: `/tmp/speech-vqx-24-diagnostic/`. Credentials were handled only by SDK environment resolution; no key values/environment snapshots, raw exception/provider text, headers, IDs, URLs, audio text/base64/hexdumps were printed or captured. Live stdout/stderr from synthesis were suppressed; TLS unchanged. No conversion, resampling or decoder dependency.
+
+| Property/check | Observed |
+| --- | --- |
+| Result provider/model/MIME | `xai` / `grok-tts` / `audio/wav` |
+| Total bytes; RIFF/WAVE markers | 333652; true/true |
+| RIFF declared / actual length excluding first 8 bytes | 2147483683 / 333644 |
+| `fmt` declared length; compression code | 16; 1 (PCM) |
+| Sample width / channels / rate | 2 bytes / 1 / 24000 Hz |
+| Bits / byte rate / block alignment | 16 / 48000 / 2 |
+| `data` declared bytes; `wave` nframes | 2147483647 / 1073741823 |
+| Actual PCM bytes through EOF | 333608 |
+| Compression NONE / frame aligned / nonsilent | true / true / true |
+| Actual duration | 6.950166666666667 seconds |
+| Size / properties / even PCM / duration checks | true / true / true / true |
+| Declared-byte check / smoke WAV validation | **false / false** (static local type `ValueError`) |
+
+**Exact current diagnostic failure:** `smoke/run.py:validate_wav` recognizes only **4294967295 (`0xffffffff`)** as unknown data size. The returned data declaration is **2147483647 (`0x7fffffff`)**, not that accepted marker; `len(pcm) != declared_size` is true, so its **Truncated WAV** branch raises. The paired RIFF declaration is data declaration + 36. Numeric evidence establishes this mismatch; it does not establish that all finite mismatches are safe, nor independently prove the earlier streamed response had this header. Fix-target bug **`speech-vqx.26`** requests a synthetic offline regression and deliberate handling of this observed unknown-length convention while retaining real finite-truncation/format/alignment/duration/nonsilence protection. No fix applied under this diagnostic-only scope.
+
+**`.24` complete after one diagnostic; `.19` unresolved and `.11` BLOCKED/NOT DONE. Final two-path rerun NOT AUTHORIZED; milestone live gate NOT PASSED. Manual listening NOT DONE; STT NOT RUN; live OpenAI NOT RUN.** Only spec 007 appended; no source/other-doc edits, Git operations or worktrees.
+
+### Final authorized two-path re-verification (`speech-vqx.11`) — PASS / DONE
+
+2026-09-30, tested SDK + smoke code **`3adfb10da5ed5f7afa20c271f3f74797a302aa08`**, shared `feat/two-provider-tts`. The local HEAD/ref files were read without Git commands; source and smoke hashes were checked before and after the live invocation. Closed `.26` root-cause fix and `.22` independent review were reused; no SDK, smoke, test, gate or dependency edits were made. The user explicitly authorized necessary bounded verification without further approval questions.
+
+#### Current offline/build/clean-install evidence — PASS
+
+- Conventional build: `uv run --frozen python -m build --outdir /tmp/speech-vqx-11-final/dist`, with provider keys and `PYTHONPATH` removed, produced fresh sdist and wheel `0.0.0`. Wheel SHA-256: **`d6453ab2dcf33786aca7cabb22a2b6f98f3b5807929cc636751587db77d70c52`**.
+- Runtime requirements: `uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/speech-vqx-11-final/runtime.txt`; fresh environments created with `uv venv --python 3.11` and `uv venv --python 3.14`; `uv pip install --python <venv>/bin/python --require-hashes -r <runtime.txt>`, then `uv pip install --python <venv>/bin/python --no-deps <wheel>`. Build/export/install used `UV_OFFLINE=1` and no provider keys; no manual venv or Python pip installation commands.
+- All **10** SDK runtime files (every `src/speech_sdk/**/*.py` and `py.typed`) matched source, wheel and installed bytes exactly on both runtimes. Noneditable distribution/version, outside-checkout `site-packages` imports, LICENSE and attribution/dependency metadata passed; wheel excludes smoke/tests/audio artifacts.
+- Full **108 tests PASS**, zero failures/errors/skips, on **Python 3.11.12 and 3.14.7**. The 3.11 full suite used the existing locked development environment; the 3.14 full suite used its fresh wheel environment plus the existing 3.11 development site-packages path for the four Radon quality checks. This is not a claim of a fresh 3.14 development-tool install.
+- Copied current smoke and seven runtime test modules outside the checkout: **104 installed-wheel tests PASS on each runtime**, zero failures/errors/skips, including all **30 smoke tests**. Radon was absent from both runtime-only environments. Provider keys/`PYTHONPATH` removed; environment cleared during discovery/execution; six socket/HTTPX tripwires and macOS OS-level network denial applied to all four suites. No real provider calls in tests.
+- Clean-wheel CLI `--help` exit 0 and explicit missing-key `--provider xai` exit 2 passed on both runtimes from the outside-checkout copy, without artifacts. No fresh remote clone or Windows setup was executed/claimed.
+- Original private `.24` diagnostic revalidated read-only with current `validate_wav`: **333652 bytes**, **6.950166666666667 seconds**, unchanged SHA. It remains diagnostic evidence, not a final live artifact. Precise data `0x7fffffff` + RIFF `0x80000023` + payload offset 44 recognition and original `0xffffffff` support remain unchanged; arbitrary finite truncation protection was not weakened.
+
+#### Actual live invocation and saved-file verification — PASS
+
+Exactly **one** invocation of the existing public runner from the repository cwd, with inherited environment credentials and `PYTHONPATH` removed, using the fresh noneditable wheel Python:
+
+```sh
+cd /Users/mattruiters/Code/Projects/speech-sdk-python
+env -u PYTHONPATH /tmp/speech-vqx-11-final/venv311/bin/python smoke/run.py --provider xai
+```
+
+UTC start **2026-09-30T21:57:52.747880Z**, end **2026-09-30T21:57:56.147992Z**; wall time **3.400153 seconds**, exit **0**. A private subprocess harness enforced an exclusive once-only guard, discarded stderr and retained only allowlisted safe summaries. The invocation inherited credentials, not a copied/logged key value. Both sequential public paths ran with `xai/grok-tts`, fixed short `TEXT`, `eve`, language `en`, WAV 24 kHz, `max_retries=0`, network timeout 60 seconds and overall timeout 90 seconds per path. At most **two** POST attempts by audited control flow; actual server receipt/count was not instrumented. No retries, additional provider probes or paid reruns.
+
+```text
+xai/grok-tts buffered: PASS 291412 bytes 6.070s 24000Hz mono16 full-call=1236.7ms artifacts/smoke/xai/buffered.wav
+xai/grok-tts streamed: PASS 291428 bytes 6.071s 24000Hz mono16 setup=1836.3ms artifacts/smoke/xai/streamed.wav
+```
+
+The runner checked expected provider/model/media type/input-character count and finite nonnegative full-call/setup metadata. Afterwards, both actual saved files were independently read-only validated using the current repository `validate_wav` and stdlib WAV/PCM inspection under network denial, with provider keys removed:
+
+| Path (ignored, never Git-added) | Total / actual PCM bytes | Actual duration | Timing |
+| --- | --- | --- | --- |
+| `artifacts/smoke/xai/buffered.wav` | 291412 / 291368 | 6.070166666666666 s | full-call 1236.7 ms |
+| `artifacts/smoke/xai/streamed.wav` | 291428 / 291384 | 6.0705 s | setup 1836.3 ms |
+
+Both are uncompressed **24000 Hz, mono, signed 16-bit PCM**, aligned, nonempty and nonsilent with actual duration strictly between 0 and 60 seconds. Both live files have the precisely recognized data declaration **2147483647 (`0x7fffffff`)**, RIFF declaration **2147483683 (`0x80000023`)**, and 44-byte header. Saved bytes were unchanged across verification; no `.wav.part` remains. Buffered SHA-256 **`30baeefa58ef00c5bcbd98f5bbc0c7c04d97dfbb78d9ad13a37f72b06214b0fc`**; streamed SHA-256 **`9b49118582dc809be866a6f57b204fc8b911f38469b59f9804b6985298b7a4d7`**.
+
+Safe local evidence: **`/tmp/speech-vqx-11-final/`** (`build.log`, hash-locked setup logs/requirements, `source-snapshot.json`, `live-stdout-safe.txt`, `live-result.json`, `artifact-validation.json`, and temporary runnable checks). Tested smoke SHA-256 **`cb41d27555118560bd4f015a40ef9838d84603f54c48484cd73b66df38e3aea4`**. No credential value/header/body/provider code/request ID/raw response/traceback was logged during live verification; live stderr was discarded. Audio remains only at ignored artifact paths and is never added to Git.
+
+#### CI provenance is separate from live evidence
+
+PR #4 targeting `main`, pushed feature HEAD `3adfb10`, and current hosted CI run [36782577660](https://github.com/hybrd-oss/speech-sdk-python/actions/runs/36782577660) green (quality/hooks/build/installed public tests and runtime 3.11/3.14) are orchestrator-reported provenance in `.11`'s final comment, not independently fetched here. Prior hosted CI run [36768635339](https://github.com/hybrd-oss/speech-sdk-python/actions/runs/36768635339) was reported green for earlier code `e8c9f0e` via its PR merge commit; **that older run is not CI verification of `3adfb10`. Neither CI run is live evidence**. Closed `.30` notes independently report 13 offline hooks, 108 tests, actionlint and link checks on the exact reviewed pre-merge tree; these gates were not rerun by this final validator. The current tests/build/install and actual live results above were executed here, not inferred from CI.
+
+**`.19` resolved:** `.24` isolated the header root cause, `.26` fixed it precisely, and this actual final run confirms both buffered and streamed paths. **`.11` complete; milestone minimum live gate PASSED.** Historical failed attempts remain valid historical evidence, not current status. **Manual listening: NOT DONE. Live OpenAI: NOT RUN (key absent). STT: NOT RUN/deferred.** Only this spec's current-status header and appended results were edited; no other docs/source, Git commands/commits/pushes or worktrees.

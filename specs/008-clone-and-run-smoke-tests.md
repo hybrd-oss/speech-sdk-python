@@ -1,10 +1,10 @@
 # 008 — Clone-and-run provider smoke tests
 
-Status: draft. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md). Used by the validation gate in [007](007-validation-and-xai-e2e.md).
+Status: runner and offline checks implemented; live xAI buffered + streamed WAV **PASS** on `3adfb10` (2026-09-30), completing milestone one. Valid, nonsilent mono PCM16/24 kHz artifacts: ignored `artifacts/smoke/xai/buffered.wav` (6.0701667 s) and `streamed.wav` (6.0705 s). Live OpenAI is **UNVERIFIED** (key absent) with offline provider/runner coverage; manual listening **NOT DONE**, STT deferred, no PyPI release/full parity claimed. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md). Final evidence and historical attempts: [007](007-validation-and-xai-e2e.md).
 
 ## Goal
 
-Anyone with Python and their own provider key can clone the repo, install it, and verify real buffered and streamed speech. No contributor accounts, test framework, audio tools, Node runtime, or hosted HYBRD service required.
+Anyone with [uv](https://docs.astral.sh/uv/getting-started/installation/) and their own provider key can clone the repo, install it, and verify real buffered and streamed speech. No contributor accounts, test framework, audio tools, Node runtime, or hosted HYBRD service required.
 
 ## Deliverables
 
@@ -16,28 +16,26 @@ Anyone with Python and their own provider key can clone the repo, install it, an
 
 ## Clone-and-run contract
 
-Commands to deliver (not runnable until implementation):
+Install uv first; use it to manage Python and the environment. Clone-and-run commands (checkout `feat/two-provider-tts` until merged):
 
 ```sh
 git clone https://github.com/hybrd-oss/speech-sdk-python.git
 cd speech-sdk-python
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e .
+git checkout feat/two-provider-tts
+uv sync --frozen --no-dev --python 3.11
 
 # Set either or both using your own credentials:
 export XAI_API_KEY="your-xai-key"
 # export OPENAI_API_KEY="your-openai-key"
 
-# Runs only providers with nonblank configured keys:
-python smoke/run.py
-
+# Paid: exactly two short checks on success, at most two requests, no retries.
 # Explicit provider: missing key is an error, not a skip:
-python smoke/run.py --provider xai
-python smoke/run.py --provider openai
+uv run --frozen --no-dev python smoke/run.py --provider xai
+# Alternative: --provider openai (requires OPENAI_API_KEY)
+# Omit --provider only to run all providers with configured keys.
 ```
 
-Document Windows equivalents for venv activation and environment variables when adding runnable README instructions. Do not add `python-dotenv`: standard environment variables suffice. Never commit keys or include real keys in screenshots/reports. An `.env` file alone is not automatically loaded.
+Windows PowerShell uses the same clone, uv sync and uv run commands; set keys with `$env:XAI_API_KEY = "your-xai-key"` and `$env:OPENAI_API_KEY = "your-openai-key"` instead of POSIX `export`. See the [README PowerShell setup](../README.md#clone-install-run). Do not add `python-dotenv`: standard environment variables suffice. Never commit keys or include real keys in screenshots/reports. An `.env` file alone is not automatically loaded.
 
 ## Selection and execution
 
@@ -80,4 +78,4 @@ Failure output uses safe SDK summaries, never dumps authorization, keys, request
 
 ## Completion relationship
 
-A successful `python smoke/run.py --provider xai` verifies both real xAI public API paths and satisfies 007's live xAI requirement. Record the run in 007. OpenAI's smoke checks must exist and have offline runner coverage even when its live verification is unavailable; report that status honestly.
+A successful `uv run --frozen --no-dev python smoke/run.py --provider xai` verifies both real xAI public API paths and satisfies 007's live xAI requirement. Record the run in 007. OpenAI's smoke checks must exist and have offline runner coverage even when its live verification is unavailable; report that status honestly.

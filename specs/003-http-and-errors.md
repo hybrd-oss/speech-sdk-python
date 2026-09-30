@@ -1,6 +1,6 @@
 # 003 — HTTP lifecycle, errors, and retries
 
-Status: draft. Depends on [002](002-api-and-package.md). Used by buffered generation and streaming for both providers.
+Status: implemented with offline lifecycle/error/retry checks; live xAI buffered + streamed WAV passed on `3adfb10` ([007](007-validation-and-xai-e2e.md)). Retry and failure classifications remain covered by deterministic offline tests, not inferred from live success. Depends on [002](002-api-and-package.md). Used by buffered generation and streaming for both providers.
 
 ## Deliverables
 
@@ -23,13 +23,13 @@ Small hierarchy under `SpeechSDKError`:
 - `MissingApiKeyError`: provider and expected environment variable; never includes the supplied key.
 - `ProviderError`: provider/model, status code if present, provider code, request ID, parsed details, raw response text, `retryable`, optional retry-after seconds, and stage (`synthesis`).
 - `NoSpeechGeneratedError`: empty input (terminal) or empty buffered/streamed response; transient buffered emptiness may be retryable, exposed-stream emptiness is not.
-- Local unknown model, incompatible output, and invalid options use `ValueError`/`TypeError` rather than one new exception class per validation rule.
+- Unknown providers, blank model IDs, invalid ID types, incompatible output, and invalid options fail locally with `ValueError`/`TypeError` rather than one new exception class per validation rule. Any nonblank string model ID under a known provider is accepted and preserved verbatim, not locally whitelisted; OpenAI validates availability, while xAI IDs are metadata only (see 002/004/005).
 
 Preserve eligible network errors as causes (`raise ... from error`). Cancellation remains `asyncio.CancelledError`, not an SDK error. Do not catch `BaseException` except for resource cleanup that immediately re-raises.
 
 For failed HTTP responses, parse common `error.message/code`, string `error`, top-level `message/code`, and `detail` shapes when present. Preserve unknown valid JSON in details and malformed text as raw text. Request-ID headers (`request-id`, `x-request-id`) take precedence over body `request_id`/`requestId`. Header lookups are case-insensitive.
 
-Default `str(error)`/repr exposes provider, model, status/code/request ID and a safe summary, **not raw provider response/message/details**, which may echo input or secrets. Store those as explicit attributes for caller inspection. No automatic logging.
+Default `str(error)`/`repr(error)` exposes provider, HTTP status when present, code/request-ID **presence only**, and a safe summary, **not model IDs, raw provider codes/request IDs, or provider response/message/details**, which may echo input or secrets. Preserve the caller model ID, provider code, request ID, parsed details and raw response text as explicit attributes for caller inspection. No automatic logging.
 
 A 2xx JSON/HTML/SSE response is not audio success in milestone one; raise a terminal response-contract error. Adapters classify expected audio MIME types; missing/generic `application/octet-stream` may use the validated request format. Do not heuristically JSON-parse arbitrary PCM/audio bytes. Full codec decoding is outside the SDK; live WAV validation belongs to 007.
 
