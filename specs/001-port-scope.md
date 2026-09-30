@@ -69,7 +69,7 @@ Do not expose deferred options and silently ignore them. Until tag processing ex
 1. **Foundation + OpenAI vertical slice:** minimal package configuration, result/error types, provider contract, injectable HTTP transport, buffered OpenAI synthesis, and offline checks.
 2. **xAI:** provider-specific body/output handling, default model/key resolution, and equivalent HTTP contract checks.
 3. **Streaming + reliability:** context-managed responses, bounded retries, timeouts, cancellation, cleanup tests, and opt-in live smoke checks for both providers.
-4. **First usable package:** finish examples and API documentation; validate installation and license/notice inclusion. Add CI for the actual checks once those checks exist.
+4. **First usable package:** finish examples and API documentation; validate installation and license/attribution inclusion. Add CI for the actual checks once those checks exist.
 
 Each step should leave runnable checks. No empty implementations or speculative class hierarchies. Use `httpx` plus the standard library initially; dataclasses and `typing.Protocol` cover shared contracts with two adapters. No official provider SDK dependencies.
 
@@ -86,4 +86,4 @@ Full parity means tested behavior and documented intentional differences, not ju
 
 ## Attribution when implementation begins
 
-Retain relevant upstream notices. Files translated or adapted from upstream should prominently identify their origin and Python modifications, including the reference commit. Include LICENSE and NOTICE in built distributions. Do not claim Jellypod affiliation or guaranteed parity before verification.
+Retain relevant upstream notices. Files translated or adapted from upstream should prominently identify their origin and Python modifications, including the reference commit. Include LICENSE and the README attribution in built distributions; preserve any upstream NOTICE if one is introduced. Do not claim Jellypod affiliation or guaranteed parity before verification.

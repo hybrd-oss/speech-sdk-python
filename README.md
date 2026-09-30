@@ -49,4 +49,4 @@ Set `OPENAI_API_KEY` or `XAI_API_KEY` for the selected provider. Keys go directl
 
 Reference baseline: [`0e5a670324fb7be51a22708fe08bd7cc50f09f99`](https://github.com/Jellypod-Inc/speech-sdk/tree/0e5a670324fb7be51a22708fe08bd7cc50f09f99) (`@speech-sdk/core` 0.34.0).
 
-Apache-2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE). This is a HYBRD OSS project, not an official Jellypod release.
+Apache-2.0; see [LICENSE](LICENSE). Upstream attribution: Copyright 2026 Jellypod, Inc. This is an independent HYBRD OSS project, not an official Jellypod release or affiliated with Jellypod. The initial repository contains planning documentation, not translated SDK code.
