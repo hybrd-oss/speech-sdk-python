@@ -9,7 +9,7 @@ import httpx
 from . import _http
 from ._validation import validate_model_id
 from .errors import NoSpeechGeneratedError
-from .providers import OpenAIProvider, XAIProvider
+from .providers import AzureOpenAIProvider, OpenAIProvider, XAIProvider
 from .types import (
     AudioData,
     AudioOutput,
@@ -25,7 +25,7 @@ __all__ = ["generate_speech", "stream_speech"]
 
 
 def _configured_model(model: ResolvedModel) -> ResolvedModel:
-    if not isinstance(model.provider, (OpenAIProvider, XAIProvider)):
+    if not isinstance(model.provider, (OpenAIProvider, XAIProvider, AzureOpenAIProvider)):
         raise ValueError("Unknown speech provider")
     return model.provider.model(validate_model_id(model.model_id))
 
@@ -38,6 +38,8 @@ def _resolve(model: str | ResolvedModel) -> ResolvedModel:
         return OpenAIProvider().model(model_id if separator else None)
     if provider == "xai":
         return XAIProvider().model(model_id if separator else None)
+    if provider == "azure":
+        return AzureOpenAIProvider().model(model_id if separator else None)
     raise ValueError("Unknown speech provider")
 
 

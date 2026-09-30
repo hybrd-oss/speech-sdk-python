@@ -1,6 +1,6 @@
 # 003 — HTTP lifecycle, errors, and retries
 
-Status: implemented with offline lifecycle/error/retry checks; live xAI buffered + streamed WAV passed on `3adfb10` ([007](007-validation-and-xai-e2e.md)). Retry and failure classifications remain covered by deterministic offline tests, not inferred from live success. Depends on [002](002-api-and-package.md). Used by buffered generation and streaming for both providers.
+Status: implemented with offline lifecycle/error/retry checks; live xAI buffered + streamed WAV passed on `3adfb10` ([007](007-validation-and-xai-e2e.md)). Retry and failure classifications remain covered by deterministic offline tests, not inferred from live success. Depends on [002](002-api-and-package.md). Used by buffered generation and streaming; Azure's provider contract is in [010](010-azure-openai-tts.md).
 
 ## Deliverables
 
@@ -8,10 +8,10 @@ One shared HTTP execution/error/retry path using `httpx` and `asyncio`. Provider
 
 ## HTTP contract
 
-- JSON POST, bearer authentication, `Content-Type: application/json`, and a HYBRD SDK user-agent identifying this implementation, not impersonating Jellypod.
+- JSON POST with provider-selected authentication: shared helpers default to `Authorization: Bearer <key>` for OpenAI/xAI; Azure selects canonical `api-key` only (010). Always send `Content-Type: application/json` and a HYBRD SDK user-agent identifying this implementation, not impersonating Jellypod.
 - Normalize trailing slashes on configured base URLs; preserve path prefixes such as `/v1`. Reject URLs without an HTTP(S) scheme/host or with embedded credentials/query/fragment. Custom endpoints are a deliberate trust boundary: credentials will be sent there.
 - Do not follow redirects, including on injected clients: redirects produce a terminal SDK error instead of forwarding credentials.
-- Merge custom headers case-insensitively, then protect authorization/content-type and reject attempts to change host/content-length/transfer-encoding. These wire fields belong to the transport. Do not log request bodies, custom sensitive headers, or API keys.
+- Validate caller headers and merge case-insensitively; strip both auth families before setting exactly one canonical provider auth header. Match `authorization` and `api-key` aliases after lowercasing and removing hyphens/underscores, including compact forms, for every provider. Protect content-type and reject host/content-length/transfer-encoding overrides. These wire fields belong to the transport. Do not log request bodies, custom sensitive headers, or API keys.
 - SDK-created client: create once per public invocation, reuse across its attempts, close on every exit. Injected client: caller owns it; never close or mutate global client defaults.
 - Apply explicit per-request timeout defaults (60 seconds for HTTPX network phases). Accept positive finite seconds or a finite positive `httpx.Timeout` configuration. This is not an overall synthesis deadline; callers can use `asyncio.timeout(...)` for one. Document longer timeouts for large xAI inputs.
 - Response objects close before retries and on every completion/failure path. Shared streaming execution must not call `.aread()` on a successful binary response.

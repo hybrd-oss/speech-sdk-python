@@ -24,7 +24,7 @@ Default request:
 - Native options are copied first; canonical `model`, `input`, and `voice` overwrite conflicting values.
 - Enforce binary `stream_format="audio"` for generation and streaming. Reject `"sse"` before HTTP; parsing OpenAI SSE is deferred, not equivalent to audio bytes.
 - Omitted output uses native `response_format` or the provider MP3 default. Explicit `AudioOutput` controls format. Common formats: MP3/WAV/PCM; native options may also request documented Opus/AAC/FLAC, with correct media types.
-- Reject invalid `response_format`, unknown output modes, nonnumeric/nonfinite speed, and speed outside 0.25–4.0 before sending. Unknown JSON-serializable native options can be forwarded unless they conflict with protected fields or change the response protocol.
+- Reject invalid `response_format`, unknown output modes, nonnumeric/nonfinite speed, and speed outside 0.25–4.0 before sending. Unknown finite JSON-serializable native options may be forwarded for provider validation, not arbitrary passthrough: auth, URL, method, body, framing and protocol controls are reserved. In particular, `authorization`, `api_key`, `api_version`, `timestamps` and `with_timestamps` fail locally by presence, even with `False` values. Match reserved names after trimming/lowercasing and removing hyphens/underscores (`api-key`, `apikey`, `api-version`, `apiVersion`, `with-timestamps`, etc.). Recognized native fields must use their exact canonical names; aliases such as `response-format` or `streamFormat` are rejected.
 - Canonical and native `instructions` must be strings. Combine nonblank canonical then native instructions with `"\n\n"`, matching upstream's order when both are supplied. Combined maximum is 4,096 characters per current API reference. Blank-only instructions are omitted; nonblank instructions fail locally only on known unsupported `tts-1`/`tts-1-hd`. Unknown IDs forward instructions for provider validation.
 - Text is sent verbatim, including punctuation/whitespace/bracket tags. Do not call upstream's tag-to-instructions algorithm in milestone one.
 - String voice IDs only initially. Accept any nonblank string, leaving account/model voice availability to the provider; no extra voice-list request per synthesis. Custom voice objects and creation are deferred.
@@ -53,7 +53,7 @@ Check response MIME against the request (allow documented equivalent MIME aliase
 - Instructions combination, length, blank omission, older-model rejection, and verbatim tagged text.
 - 4,096 characters accepted; 4,097 rejected without requests; Unicode counts follow 002.
 - MP3/WAV/PCM and native Opus/AAC/FLAC media mapping; bare PCM and omitted/generic MIME; conflicting/non-audio MIME errors.
-- Unsupported rates, invalid speed, SSE mode, missing keys, 401/429/503, malformed provider errors, and empty audio use shared rules.
+- Unsupported rates, invalid speed, SSE mode, reserved auth/version/timestamp options (including false values) and native-field aliases fail before HTTP; missing keys, 401/429/503, malformed provider errors, and empty audio use shared rules.
 - Byte-for-byte preservation of mocked audio; no decoder or codec dependency.
 
 ## Sources and differences

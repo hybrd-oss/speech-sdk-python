@@ -5,6 +5,7 @@ import math
 import os
 import re
 from collections.abc import Mapping
+from typing import Literal
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -122,7 +123,11 @@ def _validate_path(path: str) -> None:
         raise ValueError("Endpoint cannot traverse the base URL prefix")
 
 
-def request_headers(key: str, headers: Mapping[str, str] | None) -> dict[str, str]:
+def request_headers(
+    key: str,
+    headers: Mapping[str, str] | None,
+    auth_header: Literal["authorization", "api-key"] = "authorization",
+) -> dict[str, str]:
     merged = {"user-agent": "HYBRD/speech-sdk-python"}
     if headers is not None:
         if not isinstance(headers, Mapping):
@@ -131,8 +136,9 @@ def request_headers(key: str, headers: Mapping[str, str] | None) -> dict[str, st
             _validate_header(name, value)
             if name.lower() in ("host", "content-length", "transfer-encoding"):
                 raise ValueError("Transport headers cannot be overridden")
-            merged[name.lower()] = value
-    merged["authorization"] = f"Bearer {key}"
+            if name.lower().replace("-", "").replace("_", "") not in ("authorization", "apikey"):
+                merged[name.lower()] = value
+    merged[auth_header] = f"Bearer {key}" if auth_header == "authorization" else key
     merged["content-type"] = "application/json"
     return merged
 
@@ -159,6 +165,7 @@ def prepare_request(
     headers: Mapping[str, str] | None = None,
     timeout: float | httpx.Timeout = 60.0,
     max_retries: int = 2,
+    auth_header: Literal["authorization", "api-key"] = "authorization",
 ) -> PreparedRequest:
     """Provider adapters call this only after validating their native fields."""
     key = resolve_api_key(provider, "configured API key", explicit=api_key)
@@ -166,7 +173,7 @@ def prepare_request(
         provider=provider,
         model=model,
         url=endpoint_url(base_url, path),
-        headers=request_headers(key, headers),
+        headers=request_headers(key, headers, auth_header),
         content=json.dumps(copy_options(body), allow_nan=False).encode("utf-8"),
         timeout=validate_timeout(timeout),
         max_retries=validate_retries(max_retries),

@@ -1,6 +1,6 @@
 # 002 — Python API and package
 
-Status: implemented with offline public API/package checks; the required live xAI buffered + streamed WAV gate passed on `3adfb10`, as recorded in [007](007-validation-and-xai-e2e.md). Live OpenAI remains unverified. Dependencies: none. Scope: shared contracts needed by both adapters, not provider HTTP implementation.
+Status: implemented with offline public API/package checks; the required live xAI buffered + streamed WAV gate passed on `3adfb10`, as recorded in [007](007-validation-and-xai-e2e.md). Live OpenAI remains unverified. [010](010-azure-openai-tts.md) extends these implemented shared contracts to a third provider, Azure OpenAI, without changing public call signatures; Azure offline acceptance passed, live synthesis remains unverified after a deployment-unavailable attempt. Dependencies: none. Scope: shared contracts needed by the three adapters, not provider HTTP implementation; 007 remains historical two-provider evidence.
 
 ## Deliverables
 
@@ -30,26 +30,26 @@ async def generate_speech(
 def stream_speech(...) -> AsyncContextManager[SpeechStream]: ...
 ```
 
-- `OpenAIProvider(api_key=None, base_url=...)` and `XAIProvider(...)` expose `.model(model_id=None) -> ResolvedModel`. No provider factories on top of those classes.
+- `OpenAIProvider(api_key=None, base_url=...)`, `XAIProvider(...)` and `AzureOpenAIProvider(api_key=None, base_url=None, api_version="preview")` expose `.model(model_id=None) -> ResolvedModel`. Azure is exported from both `speech_sdk` and `speech_sdk.providers`; its base URL is required explicitly or through environment configuration (010). No provider factories on top of those classes.
 - An injected HTTP client is call-level and caller-owned. Provider instances hold configuration, not secretly owned live clients.
 - `AudioOutput(format="mp3" | "wav" | "pcm", sample_rate=None)` describes **native** output only. Omission preserves provider options/defaults. Unknown formats or unsupported rates fail locally.
 - `AudioData(data: bytes, media_type: str)` and `SpeechResult(audio, provider, model, metadata, provider_metadata, warnings)` are dataclasses.
 - Buffered metadata exposes `input_chars` and `latency_ms` (full synthesis call including retries/body reading, excluding caller file writing).
 - `SpeechStream` exposes `audio: AsyncIterator[bytes]`, `media_type`, `provider`, `model`, `metadata`, `provider_metadata`, and `warnings`. Streaming metadata exposes `input_chars` and `setup_latency_ms`; first-byte/completion timing is not required in milestone one.
 - Empty warnings use an empty tuple; absent provider metadata uses `None`. Never fabricate audio duration, billing, token counts, or timestamps.
-- An internal provider `Protocol` covers model metadata and request construction/response interpretation shared by the two adapters. Keep HTTP execution/retries in one shared path; buffered and streaming request bodies must not drift.
+- An internal provider `Protocol` covers model metadata and request construction/response interpretation shared by the three adapters. Keep HTTP execution/retries in one shared path; buffered and streaming request bodies must not drift.
 
 ## Resolution and validation
 
-- Accept `openai`, `xai`, and `provider/model-id`; split on the first slash. Bare names select the provider defaults from 004/005.
-- Accept any nonblank string model ID, preserving the original value including further slashes. Configured `.model(id)` takes the ID directly without provider-prefix parsing; `.model(None)` selects the default, but an explicit `ResolvedModel` ID must be a nonblank string. Reject unknown providers, blank IDs and invalid types before HTTP. No model whitelist, dynamic plugin discovery or network model listing.
-- Export flat convenience tuples `OPENAI_MODELS`/`XAI_MODELS` and strings `DEFAULT_OPENAI_MODEL`/`DEFAULT_XAI_MODEL`; these do not restrict accepted IDs. Error summaries omit untrusted model IDs while explicit `model` attributes retain them. xAI IDs are metadata only, not REST backend selectors (005).
+- Accept `openai`, `xai`, `azure`, and `provider/model-id`; split on the first slash. Bare OpenAI/xAI names select defaults from 004/005; bare `azure` reads required `AZURE_OPENAI_DEPLOYMENT_NAME` (010), with no invented default.
+- Accept any nonblank string model ID, preserving the original value including further slashes. Configured `.model(id)` takes the ID directly without provider-prefix parsing; `.model(None)` selects the OpenAI/xAI default or required Azure deployment environment value, but an explicit `ResolvedModel` ID must be a nonblank string. Reject unknown providers, blank IDs and invalid types before HTTP. No model whitelist, dynamic plugin discovery or network model listing.
+- Export flat convenience tuples `OPENAI_MODELS`/`XAI_MODELS` and strings `DEFAULT_OPENAI_MODEL`/`DEFAULT_XAI_MODEL`; these do not restrict accepted IDs and are OpenAI/xAI-only conveniences, not Azure deployment defaults. Error summaries omit untrusted model IDs while explicit `model` attributes retain them. xAI IDs are metadata only, not REST backend selectors (005).
 - Require string text/voice with non-whitespace content. Validate using `.strip()` but send original text and voice without silent normalization.
 - Count characters with Python `len(text)` (Unicode code points). Record the difference from JavaScript UTF-16 `.length`; do not add a tokenizer merely to imitate it.
 - `max_retries` is a nonnegative integer, not a bool; sample rates are positive integers, not bools. Reject invalid option types, nonfinite numbers, and non-JSON-serializable provider options before requests.
 - Explicit function `api_key` overrides a configured provider key, which overrides the provider environment variable. Explicit blank keys fail rather than falling back. Configuration reprs must not expose keys.
 - Provider options are copied, never mutated. Canonical text/model/voice override same-named native passthrough fields. Explicit `output` controls codec/rate; retain compatible extra format fields and reject conflicts or meaningless values.
-- Canonical and provider-native instructions use the provider rule in 004/005. Unsupported instructions fail, regardless of which entry point supplied them.
+- Canonical and provider-native instructions use the provider rule in 004/005/010; Azure deployment aliases do not imply known-model instruction restrictions. Unsupported instructions fail, regardless of which entry point supplied them.
 - Do not expose deferred feature parameters; ordinary Python unexpected-keyword errors suffice.
 
 ## Acceptance checks
