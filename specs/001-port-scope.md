@@ -4,7 +4,7 @@
 
 Build an independent, idiomatic Python implementation of Jellypod's Speech SDK. Start with OpenAI and xAI over direct HTTP, then expand toward full behavioral parity at a pinned upstream version.
 
-The [009 development baseline](009-quality-baseline.md) provides a package skeleton, locked developer tools, strict hooks and CI. No speech API or release exists yet. SDK work is split into [002–008 in the spec index](README.md), with dependencies and acceptance checks.
+The [009 development baseline](009-quality-baseline.md) provides locked developer tools, strict hooks and CI. Both provider adapters and public buffered/streaming APIs are implemented and checked offline; smoke checks exist. Live xAI completion, live OpenAI and listening remain unverified pending post-review bead `speech-vqx.11`. No release exists yet. SDK work is split into [002–008 in the spec index](README.md), with dependencies and acceptance checks.
 
 Reference: Jellypod-Inc/speech-sdk at `0e5a670324fb7be51a22708fe08bd7cc50f09f99` (package version 0.34.0). Source and tests define the reference behavior; current provider documentation must be checked before implementing each endpoint. Record intentional deviations instead of silently copying outdated behavior.
 

@@ -1,42 +1,79 @@
 # Speech SDK for Python
 
-An independent Python port of [Jellypod's Speech SDK](https://github.com/Jellypod-Inc/speech-sdk), starting with OpenAI and xAI over direct HTTP.
+An independent Python port of [Jellypod's Speech SDK](https://github.com/Jellypod-Inc/speech-sdk), with async OpenAI and xAI speech generation over direct HTTP.
 
-**Status: development baseline.** The installable package skeleton, strict quality gates, and `prek` hooks are set up; speech generation and PyPI releases are not implemented yet. Implementation work is broken down in [specs/](specs/README.md); full upstream behavioral parity is the long-term goal, not a current claim.
+**Status: adapters and public buffered/streaming APIs implemented and tested offline.** The smoke runner is available, but live xAI/OpenAI and manual listening are **not yet verified**. Milestone one remains open until the explicit xAI gate passes after QA/review (bead `speech-vqx.11`). No PyPI release or full upstream parity is claimed. See [specs](specs/README.md).
 
-## First milestone
+Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only direct runtime dependency. No provider SDK, Node runtime, hosted proxy, or audio decoder is needed.
 
-- Async buffered speech generation and context-managed audio streaming.
-- OpenAI and xAI adapters using `httpx`, without official provider SDKs, a Node runtime, or a hosted proxy.
-- Common audio results, provider/model resolution, API-key configuration, native output formats, structured errors, timeouts, cancellation, and bounded retries.
-- Offline HTTP contract tests and clone-and-run smoke checks for anyone with OpenAI or xAI credentials.
-- A passing real xAI buffered + streamed audio test is the first milestone's completion gate.
+## Clone, install, run
 
-Python 3.11+ is the initial target. Intended import name: `speech_sdk`. Distribution name is not reserved; confirm availability before publishing.
+From your clone of this branch (not a published PyPI package):
 
-## Proposed usage — not runnable yet
+```sh
+git clone https://github.com/hybrd-oss/speech-sdk-python.git
+cd speech-sdk-python
+git checkout feat/two-provider-tts
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install .
+
+# Set your own key locally; never commit it:
+export XAI_API_KEY="your-xai-key"
+# export OPENAI_API_KEY="your-openai-key"
+python smoke/run.py                 # all configured providers
+python smoke/run.py --provider xai # explicitly require xAI
+# python smoke/run.py --provider openai
+```
+
+Windows PowerShell equivalents:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install .
+$env:XAI_API_KEY = "your-xai-key"
+# $env:OPENAI_API_KEY = "your-openai-key"
+python smoke/run.py --provider xai
+```
+
+Alternatively, with [uv](https://docs.astral.sh/uv/getting-started/installation/): `uv sync --frozen --no-dev`, then `uv run --frozen --no-dev python smoke/run.py --provider xai`.
+
+**Explicit runner execution spends API credits.** Each selected provider gets at most two sequential synthesis requests: fixed short text, `eve` (xAI, language `en`) or `alloy` (OpenAI), WAV at 24 kHz, no retries, 60-second network-phase timeouts and a 90-second overall deadline per check. Import, `--help`, offline tests and CI never synthesize speech. No voice/model discovery calls are made.
+
+Missing keys fail preflight with exit **2**, before files or HTTP. Default mode visibly marks missing providers **NOT RUN**; explicit missing-provider selection is an error. All selected checks passing gives **0**; any ordinary request/audio/file failure gives **1** and remaining checks continue. Cancellation/Ctrl-C propagates nonzero. No `.env` loader is used.
+
+Validated artifacts are saved only after complete responses at `artifacts/smoke/<provider>/buffered.wav` and `streamed.wav` (ignored). Old selected artifacts are cleared before requests; cleanup failure prevents that provider's requests. PCM must be uncompressed mono signed 16-bit at 24 kHz, positive duration under 60 seconds and non-silent. Actual PCM byte lengths are checked, including streaming sentinel headers. Timings are **buffered full-call** and **streaming setup**, not first-audio-byte latency. You may listen manually; there is no autoplay or STT. Non-silence does not prove intelligibility or the expected words.
+
+**OpenAI applications must clearly disclose to users that the voice is AI-generated, not human**, including when presenting sample artifacts. See [OpenAI's TTS guide](https://developers.openai.com/api/docs/guides/text-to-speech).
+
+## Public API
 
 ```python
 import asyncio
 from pathlib import Path
 
-from speech_sdk import generate_speech, stream_speech
+from speech_sdk import AudioOutput, generate_speech, stream_speech
 
 
-async def main():
+async def main() -> None:
     result = await generate_speech(
         model="openai/gpt-4o-mini-tts",
         text="Hello from Python!",
         voice="alloy",
+        max_retries=0,
     )
     Path("hello.mp3").write_bytes(result.audio.data)
 
     async with stream_speech(
         model="xai/grok-tts",
-        text="Audio delivered as it arrives.",
-        voice="your-voice-id",
+        text="Hello from Python!",
+        voice="eve",
+        output=AudioOutput("wav", 24000),
+        provider_options={"language": "en"},
+        max_retries=0,
     ) as stream:
-        with Path("stream.mp3").open("wb") as file:
+        with Path("hello.wav").open("wb") as file:
             async for chunk in stream.audio:
                 file.write(chunk)
 
@@ -44,11 +81,23 @@ async def main():
 asyncio.run(main())
 ```
 
-Set `OPENAI_API_KEY` or `XAI_API_KEY` for the selected provider. Keys go directly to that provider; never commit them. Examples and API names remain provisional until implementation.
+These examples are paid calls, not smoke validation; their output files are caller-owned. Bare `openai`/`xai` select defaults. Configured `OpenAIProvider(...).model()` / `XAIProvider(...).model()` are also accepted. Explicit `api_key` overrides provider configuration then environment; explicit blank keys fail rather than fall back.
 
-## Development checks
+### Formats and lifetime
 
-With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
+Omitted output preserves native options or MP3 defaults. Common `AudioOutput` formats are MP3/WAV/raw PCM. OpenAI native options additionally support Opus/AAC/FLAC; xAI supports mulaw/alaw. No local transcoding/resampling is performed. OpenAI PCM is signed little-endian 16-bit at 24 kHz; xAI PCM has its validated native rate in the media type. OpenAI common output rates are fixed at 24 kHz; xAI supports 8/16/22.05/24/44.1/48 kHz, defaulting explicit WAV/PCM to 24 kHz. Omitted MP3 output does not invent sample-rate metadata.
+
+`stream_speech` returns a context manager, **not an awaitable**. The audio iterator is single-pass, single-consumer and valid only inside the context, with demand-driven reading and no replay. Chunks need not align with PCM frames. Responses close on completion/early exit/errors/cancellation; SDK-owned HTTP clients close too, injected `http_client` instances remain caller-owned.
+
+### Privacy and reliability
+
+Keys, text, instructions, voice IDs and native options go directly to the chosen provider, subject to its policies; no HYBRD gateway is involved. Custom provider base URLs receive credentials too: trust the destination. Protected authorization/content-type headers cannot be overridden, framing headers are rejected, redirects are not followed, and injected client defaults are not mutated. Do not log keys, request bodies, raw provider responses or error `details`/`raw_response` attributes. Runner failure summaries deliberately omit exception details.
+
+Default SDK `timeout=60.0` covers HTTPX network phases, not total synthesis time; use `asyncio.timeout(...)` for an overall deadline. Longer xAI inputs may need longer timeouts. Default `max_retries=2` means up to three attempts. Ambiguous failed POSTs may already be billed: retries can duplicate synthesis/cost; use `max_retries=0` to bound attempts. No idempotency guarantee is invented. Published streams never retry, reconnect or replay.
+
+Text is sent verbatim; limits use Python Unicode code points (OpenAI 4096, xAI 60000). Instructions are supported only on `gpt-4o-mini-tts`; SSE, timestamp envelopes, pronunciation replacement and unsupported options fail locally. STT/alignment, cloning, long-text chunking, expressive-tag translation, conversations, sync facade, audio processing and publishing remain outside this milestone.
+
+## Development
 
 ```sh
 uv sync --frozen --python 3.11
@@ -56,22 +105,10 @@ uv run --frozen prek install
 uv run --frozen prek run --all-files
 ```
 
-Runs strict mypy, Ruff lint/format, Vulture, a failing Radon complexity gate, local Semgrep rules, and offline tests. No API keys or security-platform accounts required. See [CONTRIBUTING.md](CONTRIBUTING.md) for policies and package checks.
-
-## Planned smoke tests — not runnable yet
-
-After installation, the intended commands are:
-
-```sh
-# With XAI_API_KEY and/or OPENAI_API_KEY already set:
-python smoke/run.py                 # test all configured providers
-python smoke/run.py --provider xai  # explicitly test xAI
-```
-
-Each selected provider gets two short paid calls: buffered and streamed WAV. The suite validates non-silent audio and saves files under `artifacts/smoke/` for listening. Missing keys or failed checks cannot be reported as a passing E2E. See [the smoke-test spec](specs/008-clone-and-run-smoke-tests.md).
+Strict mypy, Ruff, Vulture, Radon <=10, local Semgrep and offline unittest checks require no provider keys. See [CONTRIBUTING.md](CONTRIBUTING.md) for runtime-only and clean-wheel checks.
 
 ## Upstream and license
 
 Reference baseline: [`0e5a670324fb7be51a22708fe08bd7cc50f09f99`](https://github.com/Jellypod-Inc/speech-sdk/tree/0e5a670324fb7be51a22708fe08bd7cc50f09f99) (`@speech-sdk/core` 0.34.0).
 
-Apache-2.0; see [LICENSE](LICENSE). Upstream attribution: Copyright 2026 Jellypod, Inc. This is an independent HYBRD OSS project, not an official Jellypod release or affiliated with Jellypod. The repository currently contains planning documentation and development tooling, not translated SDK code.
+Apache-2.0; see [LICENSE](LICENSE). Upstream attribution: Copyright 2026 Jellypod, Inc. This is an independent HYBRD OSS project, not an official Jellypod release or affiliated with Jellypod. Behavioral differences and deferred parity are documented in [specs](specs/README.md).

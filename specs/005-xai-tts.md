@@ -1,6 +1,6 @@
 # 005 — xAI text-to-speech
 
-Status: draft. Depends on [002](002-api-and-package.md) and [003](003-http-and-errors.md). Required live completion gate: [007](007-validation-and-xai-e2e.md).
+Status: adapter implemented and checked offline through both public paths; live xAI not run/unverified until post-review bead `speech-vqx.11`. Depends on [002](002-api-and-package.md) and [003](003-http-and-errors.md). Required live completion gate: [007](007-validation-and-xai-e2e.md).
 
 ## Deliverables
 
@@ -73,4 +73,4 @@ Current documentation reviewed 2026-09-30:
 
 The guide explicitly describes POST as unary/server-streamed and separately describes bidirectional WebSocket TTS. We only consume the POST audio body; streaming does **not** accept incremental text input or provide a realtime voice-agent session.
 
-Before implementation, recheck response headers/defaults and codec/rate restrictions. The guide and REST reference differ on latency optimization levels, and the REST page's generic response schema emphasizes the timestamp envelope while its default examples return binary audio. Keep timestamp mode rejected; the real buffered/streamed WAV E2E is the verification gate for binary behavior.
+Live validation must still verify response headers/defaults and codec/rate restrictions. The guide and REST reference differ on latency optimization levels, and the REST page's generic response schema emphasizes the timestamp envelope while its default examples return binary audio. Keep timestamp mode rejected; the real buffered/streamed WAV E2E is the verification gate for binary behavior.

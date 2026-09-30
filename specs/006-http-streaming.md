@@ -1,6 +1,6 @@
 # 006 — Context-managed HTTP audio streaming
 
-Status: draft. Depends on [003](003-http-and-errors.md), [004](004-openai-tts.md), and [005](005-xai-tts.md).
+Status: implemented with offline streaming/backpressure/cleanup checks, including pending-read invalidation on context exit; live integration remains pending 007. Depends on [003](003-http-and-errors.md), [004](004-openai-tts.md), and [005](005-xai-tts.md).
 
 ## Deliverables
 

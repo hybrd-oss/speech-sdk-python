@@ -1,6 +1,6 @@
 # Contributing
 
-The repository currently has a package skeleton and quality gates, not a working speech API. Provider implementation work is described in [specs/](specs/README.md).
+Both provider adapters and public APIs are implemented with offline checks. Smoke execution is explicitly paid/opt-in; live verification remains pending the post-review `speech-vqx.11` gate. Status and intentional differences are in [specs/](specs/README.md).
 
 ## Setup
 
@@ -43,7 +43,7 @@ Ruff/mypy/Vulture discover new Python code repository-wide; complexity covers `s
 uv run --frozen python -m build
 ```
 
-CI additionally installs the wheel into a clean environment outside the checkout and checks the import and `py.typed`. Version `0.0.0` is a local development placeholder, not a release; no publication workflow exists. Runtime dependencies are empty until the SDK is implemented.
+CI additionally installs the wheel with hash-checked locked runtime dependencies outside the checkout, checks `py.typed`, and runs public API/streaming MockTransport tests against that installed artifact. Version `0.0.0` is a local development placeholder, not a release; no publication workflow exists. `httpx` is the only direct runtime dependency.
 
 Use `uv lock` after deliberately changing dependencies, review the diff, then rerun gates. Dependabot proposes action/uv dependency updates; maintainers review them, never auto-merge security tooling changes. CI actions are pinned by commit SHA, PR jobs have read-only permissions, and no secrets or persisted checkout credentials.
 
@@ -52,3 +52,32 @@ Use `uv lock` after deliberately changing dependencies, review the diff, then re
 Never commit keys, `.env` files, generated audio, or raw provider responses. Keep live smoke calls explicitly opt-in as specified in [008](specs/008-clone-and-run-smoke-tests.md); default hooks/CI must never call providers. Preserve upstream attribution when adapting code and keep implementation plans under `specs/`.
 
 Maintainers should require the `quality` status check and PR review in repository rules. Those remote settings are not configured by this checkout. Use private vulnerability reporting on GitHub if enabled rather than posting credentials or exploit details in public issues.
+
+## Runtime-only and installed-artifact checks
+
+Tools stay on Python 3.11. Runtime CI uses Python 3.11 and 3.14 without dev dependencies. Select SDK test modules explicitly: `test_quality_tools` imports Radon and must not be imported in runtime-only jobs. No provider keys are inherited by these commands.
+
+```sh
+uv sync --frozen --no-dev --python 3.14
+PYTHONPATH=tests env -u XAI_API_KEY -u OPENAI_API_KEY uv run --frozen --no-dev python -m unittest -v test_core test_http test_openai test_xai test_api test_streaming test_smoke
+# Restore tool environment before running prek:
+uv sync --frozen --python 3.11
+```
+
+Clean wheel check (POSIX; scratch path outside checkout, no editable import):
+
+```sh
+uv run --frozen python -m build
+uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/speech-sdk-runtime.txt
+uv venv /tmp/speech-sdk-wheel --python 3.11
+uv pip install --python /tmp/speech-sdk-wheel/bin/python --require-hashes -r /tmp/speech-sdk-runtime.txt
+uv pip install --python /tmp/speech-sdk-wheel/bin/python --no-deps dist/*.whl
+mkdir -p /tmp/speech-sdk-installed/tests
+cp tests/test_api.py tests/test_streaming.py tests/test_smoke.py /tmp/speech-sdk-installed/tests/
+cp -r smoke /tmp/speech-sdk-installed/
+(cd /tmp/speech-sdk-installed && env -u XAI_API_KEY -u OPENAI_API_KEY /tmp/speech-sdk-wheel/bin/python -m unittest discover -s tests -v)
+```
+
+The wheel install must follow hash-required runtime export/install, not replace it with an isolated `--no-deps` wheel install. Inspect sdist/wheel contents for license, attribution metadata, `py.typed`, runtime modules, and absence of secrets/audio/test artifacts. Validate CI edits with `actionlint .github/workflows/checks.yml`; preserve read-only permissions and SHA pins.
+
+For clone/install, Windows keys and paid smoke commands see [README](README.md). Do not execute live xAI/OpenAI during ordinary contribution checks; the final live gate runs only after QA/review approval. Record date/ref/command, WAV properties, duration, paths and manual listening separately in [007](specs/007-validation-and-xai-e2e.md); offline passes do not close that gate.

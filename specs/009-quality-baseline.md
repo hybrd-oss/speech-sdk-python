@@ -1,10 +1,10 @@
 # 009 — Strict development and public-repository baseline
 
-Status: implemented baseline; provider APIs and smoke tests remain unimplemented. Requested before starting 002–008 SDK work.
+Status: implemented baseline; provider APIs and smoke tests now implemented and checked offline. Live gate remains unverified in 007. Requested before starting 002–008 SDK work.
 
 ## Delivered
 
-- Python >=3.11 `src/speech_sdk/` package skeleton with `py.typed`, Apache-2.0 metadata, a pinned conventional build backend, and no runtime dependencies or fake speech functions.
+- Python >=3.11 `src/speech_sdk/` package skeleton with `py.typed`, Apache-2.0 metadata, a pinned conventional build backend, and initially no runtime dependencies or fake speech functions (SDK implementation subsequently added `httpx`).
 - Development-only mypy, Ruff, Vulture, Radon, Semgrep, prek, and build tools resolved with hashes in `uv.lock`.
 - Strict mypy plus unreachable-code warnings; Ruff correctness/annotations/import/security rules and formatting.
 - Vulture minimum confidence 60. No blanket public-API whitelist; future legitimate exports/dynamic callbacks need targeted evidence rather than weakening the global threshold.
@@ -19,14 +19,14 @@ Status: implemented baseline; provider APIs and smoke tests remain unimplemented
 - Frozen sync and lock consistency pass on tooling Python 3.11.
 - Ruff lint/format, strict mypy, Vulture, complexity, Semgrep validation/rule tests/scan, and offline unit tests pass as a single `prek run --all-files` invocation.
 - Injected bad typing, unused code, insecure TLS, excess complexity, and syntax errors produce nonzero exits. Safe Semgrep fixtures remain clean.
-- sdist/wheel build; clean wheel installation imports outside the editable checkout; LICENSE, README metadata and `py.typed` are included and runtime requirements remain empty.
+- sdist/wheel build; clean wheel installation imports outside the editable checkout; LICENSE, README metadata and `py.typed` are included and runtime requirements are locked (`httpx` after SDK implementation).
 - No upstream speech behavior is claimed verified by tooling checks. xAI E2E remains required by 007 and not run yet.
 
 ## Boundaries
 
 Python 3.11 is the shared tool environment to avoid coupling Semgrep/platform tool support to the newest package runtime. Expand runtime CI coverage with actual SDK code. The selected Semgrep rules are a small tested baseline, not exhaustive SAST, secret detection, or dependency vulnerability auditing. Local hooks can be bypassed; required remote status checks and reviewer enforcement must be enabled by repository maintainers.
 
-No release automation, provider implementations, worktree orchestration, custom lint framework, or hosted security dashboard is part of this baseline.
+No release automation, worktree orchestration, custom lint framework, or hosted security dashboard is part of this baseline. Provider implementations were delivered subsequently under 004/005, not by the baseline.
 
 ## Local verification
 

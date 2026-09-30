@@ -1,6 +1,6 @@
 # 007 — Validation and the live xAI completion gate
 
-Status: draft. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md), with the smoke runner from [008](008-clone-and-run-smoke-tests.md). **A passing real xAI E2E run is the minimum end goal, not an optional future smoke test.**
+Status: offline SDK/runner/package validation implemented; **live gate not run/unverified**, deferred until QA/review and explicit bead `speech-vqx.11`. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [006](006-http-streaming.md), with the smoke runner from [008](008-clone-and-run-smoke-tests.md). **A passing real xAI E2E run is the minimum end goal, not an optional future smoke test.**
 
 ## Deliverables
 
@@ -15,8 +15,8 @@ Status: draft. Depends on [004](004-openai-tts.md), [005](005-xai-tts.md), and [
 Offline, no keys/network:
 
 ```sh
-python -m pip install -e .
-python -m unittest discover -s tests -p 'test_*.py'
+uv sync --frozen --python 3.11
+uv run --frozen python -m unittest discover -s tests -v
 ```
 
 Live xAI, intentionally paid (key already set in the shell):
@@ -94,4 +94,6 @@ Without keys or provider availability, report blocked/unverified and leave the c
 
 ## Validation results
 
-SDK validation not run: repository currently has specifications and the [009 development baseline](009-quality-baseline.md), not speech APIs. Baseline tooling/tests/package checks do not verify provider behavior. Provider offline tests, live xAI, manual listening, and live OpenAI are all unverified.
+2026-09-30, shared `feat/two-provider-tts` based on `db77e09`: adapters/public APIs and runner checked offline. Smoke tests first failed on missing runner import, then passed with only public SDK calls mocked. Runtime and clean-wheel public MockTransport validation use no inherited provider keys. Verification: 11 focused smoke checks and 89 full offline tests pass; all 14 prek hooks and actionlint pass. Build produced sdist/wheel with LICENSE, README attribution metadata and `py.typed`. Runtime-only Python 3.11.12 and 3.14.7 each pass 85 SDK tests without Radon; clean noneditable wheels outside checkout each pass 30 public API/streaming/smoke checks after hash-required runtime installation. The documented `python -m pip install .` was checked in a clean snapshot with `--help` and no-key exit 2/no artifacts. Setuptools-default source tests are included in the sdist; wheel excludes tests, and neither includes audio/secrets. Windows commands are documented but not executed locally. Hosted CI is not claimed run; workflow syntax checked with actionlint. Full evidence is recorded in bead `speech-vqx.9`.
+
+**Live xAI: NOT RUN / UNVERIFIED. Live OpenAI: NOT RUN / UNVERIFIED. Manual listening: NOT DONE.** No paid calls or live audio artifacts were produced in .9. QA/review bead .10 precedes explicit final live gate .11; do not mark milestone one complete until .11 records the two xAI calls, date/ref/command, WAV properties/actual duration/artifact paths, and listening status.

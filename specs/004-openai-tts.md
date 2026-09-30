@@ -1,6 +1,6 @@
 # 004 — OpenAI text-to-speech
 
-Status: draft. Depends on [002](002-api-and-package.md) and [003](003-http-and-errors.md). Streaming lifecycle is owned by [006](006-http-streaming.md).
+Status: adapter implemented and checked offline through both public paths; live OpenAI not run/unverified. Depends on [002](002-api-and-package.md) and [003](003-http-and-errors.md). Streaming lifecycle is owned by [006](006-http-streaming.md).
 
 ## Deliverables
 
