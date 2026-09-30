@@ -4,7 +4,7 @@
 
 Build an independent, idiomatic Python implementation of Jellypod's Speech SDK. Start with OpenAI and xAI over direct HTTP, then expand toward full behavioral parity at a pinned upstream version.
 
-This commit is repository setup and scope only: no SDK implementation, installed dependencies, or release scaffolding.
+This repository is currently setup and specifications only: no SDK implementation, installed dependencies, or release scaffolding. Work is split into [002–008 in the spec index](README.md), with dependencies and acceptance checks.
 
 Reference: Jellypod-Inc/speech-sdk at `0e5a670324fb7be51a22708fe08bd7cc50f09f99` (package version 0.34.0). Source and tests define the reference behavior; current provider documentation must be checked before implementing each endpoint. Record intentional deviations instead of silently copying outdated behavior.
 
@@ -19,7 +19,7 @@ Reference: Jellypod-Inc/speech-sdk at `0e5a670324fb7be51a22708fe08bd7cc50f09f99`
 - Required nonempty text and voice ID. Model capability/input-limit validation before requests; oversized inputs fail clearly until chunking is implemented.
 - Provider-native options retain native key names. Canonical model/text/voice fields cannot be replaced through option passthrough.
 - Optional delivery instructions where supported; reject unsupported nonempty instructions rather than silently discarding them.
-- Native MP3/WAV/PCM output selection and provider-supported sample-rate validation; no local conversion.
+- Native MP3/WAV/PCM output selection and provider-supported sample-rate validation; no local conversion. Binary responses only: reject OpenAI SSE mode and xAI timestamp-envelope mode until those protocols are implemented.
 - Results expose audio bytes and media type, provider/model metadata, latency, optional provider metadata, and warnings. Streaming exposes media type and setup latency; do not mislabel header arrival as first audio-byte arrival.
 
 ### Provider contracts to verify and port
@@ -31,14 +31,14 @@ Reference: Jellypod-Inc/speech-sdk at `0e5a670324fb7be51a22708fe08bd7cc50f09f99`
 
 Both reference adapters use binary HTTP response bodies for generation and streaming. Do not assume xAI uses OpenAI's request schema just because both use bearer authentication.
 
-For PCM, preserve the actual sample rate in the media type. Reference OpenAI PCM is fixed at 24 kHz; xAI rates are provider-selected. Verify defaults and allowed rates against current docs; never guess missing rates for downstream processing.
+For PCM, preserve the actual sample rate in the media type. OpenAI PCM is fixed at 24 kHz; xAI rates are provider-selected. Default xAI explicit WAV/PCM output to 24 kHz (an intentional difference from upstream's 48 kHz helper). Current xAI docs allow 60,000 input characters rather than upstream's 15,000; record that contract update. Provider sources and verification items are in 004/005.
 
 ### Reliability and security
 
 - Explicit key overrides environment configuration; missing keys fail before HTTP calls. Never log keys or authorization headers.
 - An SDK-owned `httpx.AsyncClient` is closed by the SDK; an injected client remains caller-owned. Avoid creating clients per audio chunk or hidden global clients.
 - Finite, configurable network timeouts. Task cancellation propagates without retries or fallback.
-- Errors preserve provider, model, HTTP status, provider code, request ID, parsed details, raw response, and retry classification. Sensitive response details are explicit data, not automatically logged.
+- Errors preserve provider, model, HTTP status, provider code, request ID, parsed details, raw response, and retry classification. Sensitive response details are explicit data, excluded from default exception strings/reprs and not automatically logged.
 - Default two retries. Match reference classification for 429, 5xx except 501, eligible network failures, and transient empty buffered responses. Authentication/content refusals/invalid inputs are terminal.
 - Jittered exponential backoff; honor numeric and HTTP-date `Retry-After`, capped at 60 seconds as upstream does. Document potential duplicate synthesis/cost after ambiguous network failure; do not invent provider idempotency support.
 - Streaming retries stop once a successful response is exposed to the consumer. Mid-stream failures propagate; never replay delivered audio.
@@ -49,8 +49,8 @@ For PCM, preserve the actual sample rate in the media type. Reference OpenAI PCM
 - Offline tests using `httpx.MockTransport` cover exact request/auth/option precedence, model resolution, native formats/sample rates, error envelopes, missing keys, input limits, retries, and timeout/cancellation propagation.
 - Custom streaming test transport exercises multiple chunks, mid-stream failure, early exit, and response cleanup without buffering the whole response.
 - Default tests require no credentials, network, or paid API calls. Retry tests inject sleep to avoid real waits.
-- Explicit opt-in live smoke checks for both providers confirm a nonempty playable buffered file and streamed output. Credentials come from environment variables; generated audio is ignored by Git.
-- No release until the offline checks pass and live checks are performed or clearly recorded as unverified.
+- A required, explicitly opted-in live xAI E2E checks buffered and streamed WAV through the public API, including valid sample properties and non-silent PCM. Credentials come from environment variables; generated audio is ignored by Git. See [007](007-validation-and-xai-e2e.md). A clone-and-run smoke suite for both providers ([008](008-clone-and-run-smoke-tests.md)) lets anyone verify their own keys and serves as that xAI E2E.
+- Milestone one is complete only after offline/package checks and the live xAI E2E pass. Missing credentials mean blocked/unverified, not done. Live OpenAI is desirable but optional for this first completion gate.
 
 ## Deliberately outside milestone 1
 
@@ -66,10 +66,10 @@ Do not expose deferred options and silently ignore them. Until tag processing ex
 
 ## Implementation order
 
-1. **Foundation + OpenAI vertical slice:** minimal package configuration, result/error types, provider contract, injectable HTTP transport, buffered OpenAI synthesis, and offline checks.
-2. **xAI:** provider-specific body/output handling, default model/key resolution, and equivalent HTTP contract checks.
-3. **Streaming + reliability:** context-managed responses, bounded retries, timeouts, cancellation, cleanup tests, and opt-in live smoke checks for both providers.
-4. **First usable package:** finish examples and API documentation; validate installation and license/attribution inclusion. Add CI for the actual checks once those checks exist.
+1. **Shared contracts and HTTP** ([002](002-api-and-package.md), [003](003-http-and-errors.md)): package/API, model resolution, validation, errors/retries, client ownership, and offline checks. Can land with the first vertical slice rather than exporting stubs.
+2. **Provider vertical slices** ([004](004-openai-tts.md), [005](005-xai-tts.md)): buffered OpenAI/xAI, exact request contracts, native formats, and adapter checks.
+3. **Streaming** ([006](006-http-streaming.md)): context-managed responses, backpressure, no replay, cancellation, and cleanup tests.
+4. **Smoke suite and validation gate** ([008](008-clone-and-run-smoke-tests.md), [007](007-validation-and-xai-e2e.md)): clone-and-run checks for both providers, package/CI checks, runnable examples, and required live xAI buffered + streamed WAV E2E.
 
 Each step should leave runnable checks. No empty implementations or speculative class hierarchies. Use `httpx` plus the standard library initially; dataclasses and `typing.Protocol` cover shared contracts with two adapters. No official provider SDK dependencies.
 
