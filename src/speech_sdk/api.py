@@ -1,14 +1,16 @@
 """Buffered synthesis and single-pass, context-managed HTTP audio streaming."""
 
 import time
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import replace
 
 import httpx
 
 from . import _http
 from ._validation import validate_model_id
 from .errors import NoSpeechGeneratedError
+from .pronunciations import Pronunciation, merge_rules, substitute
 from .providers import AzureOpenAIProvider, OpenAIProvider, XAIProvider
 from .types import (
     AudioData,
@@ -43,6 +45,38 @@ def _resolve(model: str | ResolvedModel) -> ResolvedModel:
     raise ValueError("Unknown speech provider")
 
 
+def _prepare(
+    resolved: ResolvedModel,
+    text: str,
+    pronunciations: Sequence[Pronunciation] | None,
+    *,
+    voice: str,
+    output: AudioOutput | None,
+    instructions: str | None,
+    provider_options: Mapping[str, object] | None,
+    api_key: str | None,
+    timeout: float | httpx.Timeout,
+    max_retries: int,
+    headers: Mapping[str, str] | None,
+) -> PreparedRequest:
+    final_text = text
+    if pronunciations is not None:
+        final_text = substitute(text, merge_rules(pronunciations)).text
+    prepared = resolved.provider.prepare(
+        model_id=resolved.model_id,
+        text=final_text,
+        voice=voice,
+        output=output,
+        instructions=instructions,
+        provider_options=provider_options,
+        api_key=api_key,
+        timeout=timeout,
+        max_retries=max_retries,
+        headers=headers,
+    )
+    return prepared if pronunciations is None else replace(prepared, input_chars=len(text))
+
+
 async def generate_speech(
     *,
     model: str | ResolvedModel,
@@ -50,6 +84,7 @@ async def generate_speech(
     voice: str,
     output: AudioOutput | None = None,
     instructions: str | None = None,
+    pronunciations: Sequence[Pronunciation] | None = None,
     provider_options: Mapping[str, object] | None = None,
     api_key: str | None = None,
     http_client: httpx.AsyncClient | None = None,
@@ -59,9 +94,10 @@ async def generate_speech(
 ) -> SpeechResult:
     started = time.monotonic()
     resolved = _resolve(model)
-    prepared = resolved.provider.prepare(
-        model_id=resolved.model_id,
-        text=text,
+    prepared = _prepare(
+        resolved,
+        text,
+        pronunciations,
         voice=voice,
         output=output,
         instructions=instructions,
@@ -162,6 +198,7 @@ def stream_speech(
     voice: str,
     output: AudioOutput | None = None,
     instructions: str | None = None,
+    pronunciations: Sequence[Pronunciation] | None = None,
     provider_options: Mapping[str, object] | None = None,
     api_key: str | None = None,
     http_client: httpx.AsyncClient | None = None,
@@ -174,9 +211,10 @@ def stream_speech(
     @asynccontextmanager
     async def managed() -> AsyncIterator[SpeechStream]:
         resolved = _resolve(model)
-        prepared = resolved.provider.prepare(
-            model_id=resolved.model_id,
-            text=text,
+        prepared = _prepare(
+            resolved,
+            text,
+            pronunciations,
             voice=voice,
             output=output,
             instructions=instructions,

@@ -1,6 +1,6 @@
 # 002 — Python API and package
 
-Status: implemented with offline public API/package checks; the required live xAI buffered + streamed WAV gate passed on `3adfb10`, as recorded in [007](007-validation-and-xai-e2e.md). Live OpenAI remains unverified. [010](010-azure-openai-tts.md) extends these implemented shared contracts to a third provider, Azure OpenAI, without changing public call signatures; Azure offline acceptance passed, live synthesis remains unverified after a deployment-unavailable attempt. Dependencies: none. Scope: shared contracts needed by the three adapters, not provider HTTP implementation; 007 remains historical two-provider evidence.
+Status: implemented with offline public API/package checks; the required live xAI buffered + streamed WAV gate passed on `3adfb10`, as recorded in [007](007-validation-and-xai-e2e.md). Live OpenAI remains unverified. [010](010-azure-openai-tts.md) extends these implemented shared contracts to a third provider, Azure OpenAI, without changing public call signatures; Azure offline acceptance passed, live synthesis remains unverified after a deployment-unavailable attempt. [011](011-pronunciation-substitutions.md) adds optional typed pronunciation rules to both public calls, with offline acceptance PASS. Dependencies: none. Scope: shared contracts needed by the three adapters, not provider HTTP implementation; 007 remains historical two-provider evidence.
 
 ## Deliverables
 
@@ -18,6 +18,7 @@ async def generate_speech(
     *, model: str | ResolvedModel, text: str, voice: str,
     output: AudioOutput | None = None,
     instructions: str | None = None,
+    pronunciations: Sequence[Pronunciation] | None = None,
     provider_options: Mapping[str, object] | None = None,
     api_key: str | None = None,
     http_client: httpx.AsyncClient | None = None,
@@ -44,8 +45,9 @@ def stream_speech(...) -> AsyncContextManager[SpeechStream]: ...
 - Accept `openai`, `xai`, `azure`, and `provider/model-id`; split on the first slash. Bare OpenAI/xAI names select defaults from 004/005; bare `azure` reads required `AZURE_OPENAI_DEPLOYMENT_NAME` (010), with no invented default.
 - Accept any nonblank string model ID, preserving the original value including further slashes. Configured `.model(id)` takes the ID directly without provider-prefix parsing; `.model(None)` selects the OpenAI/xAI default or required Azure deployment environment value, but an explicit `ResolvedModel` ID must be a nonblank string. Reject unknown providers, blank IDs and invalid types before HTTP. No model whitelist, dynamic plugin discovery or network model listing.
 - Export flat convenience tuples `OPENAI_MODELS`/`XAI_MODELS` and strings `DEFAULT_OPENAI_MODEL`/`DEFAULT_XAI_MODEL`; these do not restrict accepted IDs and are OpenAI/xAI-only conveniences, not Azure deployment defaults. Error summaries omit untrusted model IDs while explicit `model` attributes retain them. xAI IDs are metadata only, not REST backend selectors (005).
-- Require string text/voice with non-whitespace content. Validate using `.strip()` but send original text and voice without silent normalization.
-- Count characters with Python `len(text)` (Unicode code points). Record the difference from JavaScript UTF-16 `.length`; do not add a tokenizer merely to imitate it.
+- Require string text/voice with non-whitespace content. Validate using `.strip()` but send original text and voice without silent normalization, except explicit pronunciation substitutions (011); voice/instructions/native options are never substituted.
+- `Pronunciation` is exported at package root. Both calls accept a snapshotted finite `Sequence[Pronunciation]`, not dictionaries/string-like containers/generators; exact built-in string fields and boolean sensitivity are required. Merging trims ends/skips blank rules without collapsing internal whitespace. Matching is stable-longest, literal whole-word/phrase, fixed-length `.lower()` rather than casefold, with no chaining or tag preprocessing. `None`, empty and all-blank rules leave text unchanged; stream rules are processed on context entry. Detailed validation and pure-module helper/edit contracts are in 011, not new audio-result fields.
+- Count characters with Python `len(text)` (Unicode code points). Both metadata types retain the original caller length; adapters enforce limits on final substituted text, so expansion may fail and contraction may fit. Record the difference from JavaScript UTF-16 `.length`; do not add a tokenizer merely to imitate it.
 - `max_retries` is a nonnegative integer, not a bool; sample rates are positive integers, not bools. Reject invalid option types, nonfinite numbers, and non-JSON-serializable provider options before requests.
 - Explicit function `api_key` overrides a configured provider key, which overrides the provider environment variable. Explicit blank keys fail rather than falling back. Configuration reprs must not expose keys.
 - Provider options are copied, never mutated. Canonical text/model/voice override same-named native passthrough fields. Explicit `output` controls codec/rate; retain compatible extra format fields and reject conflicts or meaningless values.

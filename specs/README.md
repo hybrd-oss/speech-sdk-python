@@ -17,6 +17,7 @@ Historical milestone evidence on `3adfb10`: **108 offline tests**, **13 fully of
 | [007](007-validation-and-xai-e2e.md) | Offline coverage, live xAI completion gate, package/CI checks | 004, 005, 006, 008 |
 | [008](008-clone-and-run-smoke-tests.md) | Clone-and-run smoke suite for anyone with provider keys | 004, 005, 006 |
 | [010](010-azure-openai-tts.md) | Azure OpenAI v1 preview, API-key auth — implemented/offline PASS, live UNVERIFIED | 002, 003, 004, 006 |
+| [011](011-pronunciation-substitutions.md) | Typed literal pronunciation substitutions — implemented/offline acceptance PASS | 002, 003, 004, 005, 006, 010 |
 
 Implementation order:
 
@@ -30,6 +31,10 @@ Azure extension: 010 contract → implementation → independent offline QA/revi
 
 Each implementation ships its own offline checks; 007 integrates the original two-provider milestone and 010 records Azure evidence, rather than postponing testing to the end. Specs are work boundaries, not a requirement for one class/module per spec.
 
+## Active priorities
+
+Pronunciations (011) are the current feature: implementation and independent offline QA/review passed; final documentation review and fresh Python 3.11/3.14 wheel checks precede shipping. This branch starts independently from `main` at `0151e36`, not stacked on the prepared, open cooldown PR #7. That policy is not yet on `main` or this branch: no `uv.toml` or dependency/tool changes are copied here. Provider-aware tags remain separate later work; cloning and new providers are not active work.
+
 ## Completion gate
 
 Milestone one's gate is **satisfied**: offline suite/package checks and a real xAI E2E passed through the public API for both buffered and streamed WAV. The clone-and-run smoke suite covers both providers; its explicit xAI run is the E2E gate. Future missing-key/skipped runs are not passing evidence and do not replace the recorded result. Live OpenAI verification remains desirable but is not the minimum completion gate. This historical gate does not establish Azure live success; its separate implementation/offline acceptance and deployment-blocked live attempt are recorded in 010.
@@ -41,7 +46,7 @@ Milestone one's gate is **satisfied**: offline suite/package checks and a real x
 - Generic nonblank model strings, preserved verbatim; exported model tuples/default strings are conveniences, not whitelists. Unknown providers still fail locally. OpenAI forwards exact IDs and unknown-model instructions; xAI IDs are metadata only, not REST backend selectors. Automatic error summaries omit untrusted model IDs.
 - Current xAI docs specify 60,000 input characters; pinned upstream uses 15,000. Use 60,000 and record this as a provider-contract update, not upstream parity.
 - xAI's normal wire default is 24 kHz. Pinned upstream's output helper selects 48 kHz for explicit WAV/PCM without a rate. Initial Python output defaults to 24 kHz; explicit rates remain configurable.
-- Input text is passed verbatim. Upstream OpenAI expressive-tag extraction, pronunciation mapping, chunking, and alignment remain deferred.
+- Input text is passed verbatim by default; explicit typed pronunciation rules opt into literal substitution (011). Upstream OpenAI expressive-tag extraction, chunking and alignment remain deferred.
 - Header/setup latency is not first audio-byte latency. Expose truthful timing fields instead of copying upstream's misleading streaming `ttfbMs` label.
 - Do not retry arbitrary Python exceptions. Retry only classified provider/network/empty-audio failures.
 - User-configured keys and core request fields cannot be silently replaced by custom headers/options.

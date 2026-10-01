@@ -2,6 +2,7 @@
 
 from .api import generate_speech, stream_speech
 from .errors import MissingApiKeyError, NoSpeechGeneratedError, ProviderError, SpeechSDKError
+from .pronunciations import Pronunciation
 from .providers import (
     DEFAULT_OPENAI_MODEL,
     DEFAULT_XAI_MODEL,
@@ -32,6 +33,7 @@ __all__ = [
     "MissingApiKeyError",
     "NoSpeechGeneratedError",
     "OpenAIProvider",
+    "Pronunciation",
     "ProviderError",
     "ResolvedModel",
     "SpeechMetadata",
