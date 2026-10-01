@@ -49,6 +49,8 @@ CI additionally installs the wheel with hash-checked locked runtime dependencies
 
 Use `uv lock` after deliberately changing dependencies, review the diff, then rerun gates. Dependabot proposes action/uv dependency updates; maintainers review them, never auto-merge security tooling changes. CI actions are pinned by commit SHA, PR jobs have read-only permissions, and no secrets or persisted checkout credentials.
 
+Ordinary dependency updates should use releases at least seven days old. [Dependabot cooldown](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) applies this release-age threshold to uv and GitHub Actions **version updates**; the independent weekly schedule picks eligible releases at the next check. This is not commit/PR age or a merge gate: manual dependency/lock/SHA edits are not technically blocked, and Dependabot **security updates are exempt**. Review urgent security fixes separately as an explicit exception. Delaying first-wave adoption is not a malware guarantee; retain reviewed hashes, pins, and security fixes.
+
 ## Public-repository safety
 
 Never commit keys, `.env` files, generated audio, or raw provider responses. Smoke failure diagnostics must remain limited to local phase, static safe categories, validated HTTP status and allowlisted network causes, without exception text or provider details. Keep live smoke calls explicitly opt-in as specified in [008](specs/008-clone-and-run-smoke-tests.md); default hooks/CI must never call providers. Preserve upstream attribution when adapting code and keep implementation plans under `specs/`.
