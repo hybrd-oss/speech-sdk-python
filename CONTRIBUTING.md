@@ -6,7 +6,7 @@
 
 ## Setup
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then from the repository root:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) **0.12.18 or newer** (update an older standalone installation with `uv self update 0.12.18`), then from the repository root:
 
 ```sh
 uv sync --frozen --python 3.11
@@ -14,7 +14,7 @@ uv run --frozen prek install
 uv run --frozen prek run --all-files
 ```
 
-Use Python 3.11 for development tooling; the package targets 3.11+. `uv` installs the interpreter if needed. Tool versions and dependency hashes are committed in `uv.lock`; CI pins uv 0.12.21. No API keys or Semgrep account are needed. Initial installation downloads dependencies; the analysis itself runs locally.
+Use Python 3.11 for development tooling; the package targets 3.11+. `uv` installs the interpreter if needed. Tool versions and dependency hashes are committed in `uv.lock`; CI pins uv 0.12.18. Root `uv.toml` is the single source of uv policy: `required-version` enforces the minimum, and uv 0.7.8 fails fatally while parsing its unsupported relative cooldown, before even a frozen command can execute a child. Check `uv --version` before setup. No API keys or Semgrep account are needed. Initial installation downloads dependencies; the analysis itself runs locally.
 
 `prek` is the Rust hook runner reading `.pre-commit-config.yaml`. Rust-native hooks check YAML/TOML syntax, merge markers, and private-key headers; local commands use the locked environment, with no remote hook repositories. The 13 hooks include whole-repository tool gates, even on documentation-only commits, and CI runs the same hooks. `repo: builtin` requires prek, not the Python pre-commit runner. Hooks do not rewrite files. To apply Ruff fixes deliberately:
 
@@ -48,6 +48,12 @@ uv run --frozen python -m build
 CI additionally installs the wheel with hash-checked locked runtime dependencies outside the checkout, checks `py.typed`, and runs public API/streaming MockTransport tests against that installed artifact. Version `0.0.0` is a local development placeholder, not a release; no publication workflow exists. `httpx` is the only direct runtime dependency.
 
 Use `uv lock` after deliberately changing dependencies, review the diff, then rerun gates. Dependabot proposes action/uv dependency updates; maintainers review them, never auto-merge security tooling changes. CI actions are pinned by commit SHA, PR jobs have read-only permissions, and no secrets or persisted checkout credentials.
+
+[Native uv cooldown](https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns) is configured in root `uv.toml`: `exclude-newer = "7 days"`. This dedicated [configuration file](https://docs.astral.sh/uv/concepts/configuration-files/) takes precedence over `[tool.uv]` in `pyproject.toml`; dependencies remain declared in `pyproject.toml`, without duplicated uv settings. Ordinary registry resolution (`uv add`, `uv lock`, or resolving `uv sync`) rejects **each wheel/sdist uploaded within the last seven days**, including direct/transitive runtime and development dependencies. This is artifact upload age, not version/commit/PR age; late platform wheels must mature separately. Indexes must supply PEP 700 upload times; missing times make artifacts unavailable. Use `uv lock --refresh` to refresh metadata/cutoff while preserving eligible locked versions, rather than upgrading everything. Review the regenerated lock's versions, artifacts and hashes, then rerun gates.
+
+The cutoff rolls at resolution time, but merely passing time does not rewrite the lock daily. `--frozen` sync/run/export performs no new resolution or age check: it uses the checked-in lock and its selected artifacts/hashes. Git, path and direct-URL dependencies or direct installation of a wheel are outside this registry policy. Future PyPI users installing this SDK do **not** inherit this repository's uv configuration.
+
+[Dependabot cooldown](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) independently delays uv and GitHub Actions **version updates** by seven days; its weekly schedule picks eligible releases at the next check. Dependabot **security updates are exempt from its cooldown, not from uv's resolver policy**. For an urgent security fix, explicitly review a temporary package-targeted resolver override (for example, `uv lock --refresh --exclude-newer-package PACKAGE=false`), review every newly selected artifact, and remove the exception afterward; ordinary repository/CI defaults remain seven days with no permanent allowlist. CLI/environment overrides (including `--exclude-newer false`, `UV_EXCLUDE_NEWER`, or `--no-config`) and configuration edits can bypass the native policy: maintainers are trusted, and manual lock/SHA edits are not a tamper-proof merge gate. Delaying first-wave adoption is not a malware guarantee; retain reviewed hashes, pins, and security fixes.
 
 ## Public-repository safety
 
