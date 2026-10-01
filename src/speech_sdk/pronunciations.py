@@ -2,8 +2,9 @@
 
 Source pin: 0e5a670324fb7be51a22708fe08bd7cc50f09f99, pronunciations/types,
 merge and substitute. Python modifications: frozen typed dataclasses, explicit
-runtime validation and snapshots, Python strip/lower/isalnum semantics, immutable
-edits and Unicode code-point offsets instead of JavaScript UTF-16 offsets.
+runtime validation and snapshots, reusable length-indexed OOP matching, Python
+strip/lower/isalnum semantics, immutable edits and Unicode code-point offsets
+instead of JavaScript UTF-16 offsets.
 """
 
 from collections.abc import Mapping, Sequence
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 __all__ = [
     "Edit",
     "Pronunciation",
+    "PronunciationMatcher",
     "SubstitutionResult",
     "merge_rules",
     "rule_map_key",
@@ -75,7 +77,7 @@ def merge_rules(rules: Sequence[Pronunciation]) -> dict[str, Pronunciation]:
     return merged
 
 
-def _sorted_rules(rule_map: Mapping[str, Pronunciation]) -> list[Pronunciation]:
+def _snapshot_rules(rule_map: Mapping[str, Pronunciation]) -> tuple[Pronunciation, ...]:
     if not isinstance(rule_map, Mapping):
         raise TypeError("Rule map must be a mapping")
     snapshot = tuple(rule_map.values())
@@ -85,7 +87,9 @@ def _sorted_rules(rule_map: Mapping[str, Pronunciation]) -> list[Pronunciation]:
             raise ValueError("Rule map values must be nonblank and normalized")
         if rule.word != rule.word.strip() or rule.replacement != rule.replacement.strip():
             raise ValueError("Rule map values must be nonblank and normalized")
-    return sorted(snapshot, key=lambda rule: len(rule.word), reverse=True)
+    return tuple(
+        Pronunciation(rule.word, rule.replacement, rule.case_sensitive) for rule in snapshot
+    )
 
 
 def _word_char(char: str) -> bool:
@@ -100,46 +104,89 @@ def _boundary(text: str, index: int) -> bool:
     )
 
 
-def _match(text: str, index: int, rules: Sequence[Pronunciation]) -> Pronunciation | None:
-    if not _boundary(text, index):
+_Candidate = tuple[int, Pronunciation]
+_Index = dict[str, _Candidate]
+
+
+class PronunciationMatcher:
+    """Compile normalized rules once for reuse across independent texts.
+
+    Mapping keys are ignored; insertion ranks break equal-length ties. Indexing
+    costs O(total rule characters + R + L log L) for R rules and L distinct
+    original lengths. Scanning costs O(N * sum(distinct lengths)), including
+    slice/lower/hash work, plus output size; it never scans the R rules per position.
+    """
+
+    def __init__(self, rule_map: Mapping[str, Pronunciation]) -> None:
+        self._buckets: dict[int, tuple[_Index, _Index]] = {}
+        self._compile(_snapshot_rules(rule_map))
+        self._lengths = tuple(sorted(self._buckets, reverse=True))
+
+    def _compile(self, rules: Sequence[Pronunciation]) -> None:
+        for rank, rule in enumerate(rules):
+            length = len(rule.word)  # Before lower(), which can expand Unicode characters.
+            exact, insensitive = self._buckets.setdefault(length, ({}, {}))
+            index = exact if rule.case_sensitive else insensitive
+            key = rule_map_key(rule.word, rule.case_sensitive)
+            index.setdefault(key, (rank, rule))
+
+    def _lookup(self, length: int, literal: str) -> Pronunciation | None:
+        exact, insensitive = self._buckets[length]
+        sensitive_hit = exact.get(literal)
+        insensitive_hit = insensitive.get(literal.lower())
+        if sensitive_hit is None:
+            return insensitive_hit[1] if insensitive_hit else None
+        if insensitive_hit is None or sensitive_hit[0] < insensitive_hit[0]:
+            return sensitive_hit[1]
+        return insensitive_hit[1]
+
+    def _find(self, text: str, index: int) -> Pronunciation | None:
+        if not _boundary(text, index):
+            return None
+        for length in self._lengths:
+            end = index + length
+            if end > len(text) or not _boundary(text, end):
+                continue
+            # Lower only this original-length slice: whole-text lower changes
+            # offsets (İ) and context-dependent Greek sigma matching.
+            rule = self._lookup(length, text[index:end])
+            if rule is not None:
+                return rule
         return None
-    for rule in rules:
-        end = index + len(rule.word)
-        if end > len(text) or not _boundary(text, end):
-            continue
-        literal = text[index:end]
-        matches = (
-            literal == rule.word if rule.case_sensitive else literal.lower() == rule.word.lower()
-        )
-        if matches:
-            return rule
-    return None
+
+    def substitute(self, text: str) -> SubstitutionResult:
+        if type(text) is not str:
+            raise TypeError("Pronunciation text must be a plain string")
+        if not self._lengths:
+            return SubstitutionResult(text, ())
+        return self._scan(text)
+
+    def _scan(self, text: str) -> SubstitutionResult:
+        out: list[str] = []
+        edits: list[Edit] = []
+        index = output_length = 0
+        # ponytail: distinct lengths still cost N * sum(lengths), not fully linear;
+        # use a Unicode-aware trie only if many distinct lengths become a bottleneck.
+        while index < len(text):
+            rule = self._find(text, index)
+            end = index + len(rule.word) if rule else index + 1
+            replacement = rule.replacement if rule else text[index]
+            out.append(replacement)
+            if rule:
+                edits.append(
+                    Edit(
+                        (index, end),
+                        (output_length, output_length + len(replacement)),
+                        text[index:end],
+                        rule_map_key(rule.word, rule.case_sensitive),
+                    )
+                )
+            output_length += len(replacement)
+            index = end
+        return SubstitutionResult("".join(out), tuple(edits))
 
 
 def substitute(text: str, rule_map: Mapping[str, Pronunciation]) -> SubstitutionResult:
     if type(text) is not str:
         raise TypeError("Pronunciation text must be a plain string")
-    rules = _sorted_rules(rule_map)
-    if not rules:
-        return SubstitutionResult(text, ())
-    out: list[str] = []
-    edits: list[Edit] = []
-    index = output_length = 0
-    # ponytail: O(text * rules * word_length); index matching only if measured throughput needs it.
-    while index < len(text):
-        rule = _match(text, index, rules)
-        end = index + len(rule.word) if rule else index + 1
-        replacement = rule.replacement if rule else text[index]
-        out.append(replacement)
-        if rule:
-            edits.append(
-                Edit(
-                    (index, end),
-                    (output_length, output_length + len(replacement)),
-                    text[index:end],
-                    rule_map_key(rule.word, rule.case_sensitive),
-                )
-            )
-        output_length += len(replacement)
-        index = end
-    return SubstitutionResult("".join(out), tuple(edits))
+    return PronunciationMatcher(rule_map).substitute(text)

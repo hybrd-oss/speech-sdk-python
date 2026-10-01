@@ -1,6 +1,6 @@
 # 011 — Pronunciation substitutions
 
-Status: implemented; offline acceptance **PASS**. Independent QA (`speech-488.3`) and source-parity review (`speech-488.4`) are CLOSED/PASS, with no outstanding blockers.
+Status: implemented. Original substitution acceptance **PASS**; independent QA (`speech-488.3`) and source-parity review (`speech-488.4`) are CLOSED/PASS for that original implementation (historical evidence below).
 
 ## Scope and provenance
 
@@ -34,6 +34,11 @@ class SubstitutionResult:
 
 merge_rules(rules: Sequence[Pronunciation]) -> dict[str, Pronunciation]
 rule_map_key(word: str, case_sensitive: bool) -> str
+
+class PronunciationMatcher:
+    def __init__(self, rule_map: Mapping[str, Pronunciation]) -> None: ...
+    def substitute(self, text: str) -> SubstitutionResult: ...
+
 substitute(text: str, rule_map: Mapping[str, Pronunciation]) -> SubstitutionResult
 ```
 Add only `Pronunciation` to package-root imports/`__all__`; import the other new names from `speech_sdk.pronunciations`.
@@ -42,23 +47,24 @@ Add only `Pronunciation` to package-root imports/`__all__`; import the other new
 `merge_rules` strips ends with Python `str.strip()` only, preserves internal whitespace, skips rules whose stripped word or replacement is blank, and returns new normalized frozen rules without mutating input. Python Unicode whitespace rules apply, not an emulated JavaScript trim table.
 `rule_map_key` validates exact built-in `str`/`bool`, does not trim, and returns the word unchanged if sensitive, otherwise `word.lower()`.
 Duplicate canonical keys are last-write-wins, retaining the key's original insertion position. A lowercase sensitive word can collide with its insensitive variant; uppercase sensitive/insensitive variants can coexist, as upstream.
-`substitute` requires exact built-in `str` text (even for an empty map), accepts empty/whitespace text, and requires a `Mapping`. Snapshot its values before validating/sorting. Accept valid manually assembled maps: values must be exact validated `Pronunciation` with already stripped, nonblank word/replacement; otherwise raise `ValueError` for blank/unnormalized values, `TypeError` for invalid types. Never silently admit zero-length matches.
+`PronunciationMatcher` requires a `Mapping`, snapshots its values before validation, then clones the validated frozen rules and compiles them once for reuse across input strings. Later caller map/rule changes do not affect the matcher; no global cache or lock is used. Accept valid manually assembled maps: values must be exact validated `Pronunciation` with already stripped, nonblank word/replacement; otherwise raise `ValueError` for blank/unnormalized values, `TypeError` for invalid types. Never silently admit zero-length matches.
+`PronunciationMatcher.substitute` requires exact built-in `str` text (even for an empty map) and accepts empty/whitespace text. The compatible free `substitute(text, rule_map)` validates text first, then constructs a matcher for that one call; `merge_rules` and `rule_map_key` remain unchanged.
 External map keys are ignored, not validated or copied into edits: compute each matched `rule_key` with `rule_map_key`. Preserve values' insertion order, including canonical-key collisions in manual maps; do not remerge them. No caller map mutation.
 All new validation errors are static and omit input text, words, replacements, map keys and IDs; no automatic logging.
 
 ## Matching and edits
 
-Sort values once by descending `len(word)`, stably preserving map insertion order for equal lengths. At each original-text position, try rules only at a boundary, and require a boundary at the candidate end.
+Compile dictionary buckets by original `len(word)`, with separate exact and lowercase keys and map-insertion ranks. Keep the first candidate per key in each dictionary; choose the lowest rank across exact/insensitive hits to preserve equal-length ties, including manual-map collisions. Sort distinct lengths descending. At each original-text boundary, try one fixed slice per eligible length, require a boundary at its end, and stop at the first matching length; no per-rule scan.
 A boundary is either text edge or a gap whose adjacent characters are not both word characters; word characters are `char.isalnum()` or `_` (Unicode letters/numbers, including nondecimal numbers). No regex syntax or ASCII-only boundary approximation.
-Compare the fixed-original-length slice literally, using equality when sensitive, otherwise `slice.lower() == word.lower()`. Use `.lower()`, never `.casefold()`; `ß` does not match `ss`. Preserve original text/replacement spelling otherwise.
+Look up the fixed-original-length slice literally in the exact dictionary and `slice.lower()` in the insensitive dictionary. Lower each candidate slice, not the whole text: Unicode expansion and context-dependent Greek sigma must retain the original offsets/matching context. Use `.lower()`, never `.casefold()`; `ß` does not match `ss`. Preserve original text/replacement spelling otherwise.
 Scan left-to-right once: append a match's replacement and advance by the original word length, or append one original character and advance one. Never rescan replacement text, chain rules or recurse.
 Each edit records half-open original and output ranges, the exact original slice (including its case), and the computed canonical rule key. Output offsets use accumulated output length, correctly accounting for expansion/contraction and preceding edits.
 Ranges/lengths count Python Unicode code points, intentionally not upstream UTF-16 units or grapheme clusters; emoji/combining text is not grapheme-normalized. Result edits and both range pairs are immutable tuples. No matches returns unchanged text and `edits=()`.
-Keep the simple sorted scan, worst-case `O(text_length * rule_count * word_length)`; implementation leaves a `ponytail:` comment naming this ceiling and indexed matching only if measured throughput warrants it. No trie, factory, dependency or speculative alignment abstraction.
+With `R` rules, `L` distinct original word lengths and `N` input code points, compilation costs `O(total rule characters + R + L log L)`; scanning costs `O(N * sum(distinct lengths) + output size)`. Dictionary lookup itself is expected constant time, but slicing, lowering and hashing cost string length. Same-length rules do not add scan work after compilation; many distinct lengths remain a ceiling, not an unconditional linear-time guarantee. The `ponytail:` comment reserves a Unicode-aware trie for a measured many-length bottleneck; no trie, factory, dependency or alignment abstraction now.
 
 ## Synthesis integration
 
-Both public functions retain their existing keyword-only shape and identical parameter annotations/defaults. Insert exactly `pronunciations: Sequence[Pronunciation] | None = None` immediately after `instructions`, before `provider_options`:
+Both public functions retain their existing keyword-only shape and identical parameter annotations/defaults. `pronunciations: Sequence[Pronunciation] | None = None` sits immediately after `instructions`, before `provider_options`; it still accepts a rule sequence, not a `PronunciationMatcher`:
 ```python
 # async def generate_speech(...) -> SpeechResult
 # def stream_speech(...) -> AbstractAsyncContextManager[SpeechStream]
@@ -74,16 +80,20 @@ When `pronunciations is None`, preserve the existing path and validation, includ
 Provider `prepare` signatures and direct calls stay unchanged. Adapters validate final provider-visible text: 4,096 code points OpenAI/Azure, 60,000 xAI. Oversized original input may contract below the limit and succeed; expansion beyond the final limit fails locally. Empty/whitespace SDK text still raises existing local `NoSpeechGeneratedError` and cannot become speech through a blank-word rule.
 Both metadata types' existing `input_chars` remain `len(caller_original_text)`, not the transformed length; preserve that count centrally without adding metadata fields. Transformation/validation precedes SDK-owned client creation and any request; retries reuse prepared transformed bytes, never apply substitutions again.
 Only canonical synthesis text changes (`input` OpenAI/Azure, `text` xAI). Preserve canonical model/voice precedence, instruction combination, native options/output, authentication, timeout/retry rules and caller ownership/mappings. Audio bytes, demand-driven streaming, cleanup and no-replay behavior remain unchanged.
-No tag preprocessing: preserve existing tag text unless an explicit literal rule matches it (including inside tags). Unlike upstream's tag-stripping integration, provider-aware tags remain separate later work. No inverse alignment, timestamps/STT, cloning, additional providers/adapters, audio operations or hidden parser/codec limitations are introduced.
+No tag preprocessing: preserve existing tag text unless an explicit literal rule matches it (including inside tags). Unlike upstream's tag-stripping integration, no provider-aware tag processing is included. No inverse alignment, timestamps/STT, cloning, additional providers/adapters, audio operations or hidden parser/codec limitations are introduced.
 
 ## Offline acceptance
 
 One focused `tests/test_pronunciations.py` uses upstream-derived table cases: empty/trimmed/blank rules, duplicate/colliding keys, stable equal-length order, real phrase overlap (`New York` vs `New`), exact case, Unicode letters/numbers/underscores, emoji offsets, literal `[bracket]`/`C++`, multiline/internal whitespace and `.lower()` expansion without casefolding. Assert exact text, normalized maps and immutable edit tuples/ranges, expansion/contraction, manual-map canonical keys and no chaining.
-Check invalid fields/bools, rule/text subclasses, dictionaries/string-like containers/generators, malformed manual maps and static diagnostics; prove snapshot behavior and no mutation. Pure empty text succeeds; SDK blank text fails before owned-client creation with zero requests.
+Check invalid fields/bools, rule/text subclasses, dictionaries/string-like containers/generators, malformed manual maps and static diagnostics; prove snapshot behavior and no mutation. For the reusable matcher, cover rule cloning, repeated inputs, exact/lowercase rank collisions, original-length Unicode expansion/contextual lowering and class/helper equivalence. A deterministic lookup-count check must show fixed scan work for 100 and 1000 same-length rules, without elapsed-time thresholds. Pure empty text succeeds; SDK blank text fails before owned-client creation with zero requests.
 Use `httpx.MockTransport` for all three existing providers in both modes: exact transformed requests with unchanged voice/instructions/options/auth/output, original metadata for expanding/shrinking inputs, final limit `N`/`N+1` and oversized-raw contraction. Cover `None`/empty/all-blank no-ops, unchanged tags unless literally matched, and 429→success with identical once-transformed bodies. One demand-driven stream integration check plus existing lifecycle/no-replay regressions suffices.
 Update only the expected public parameter list to add `pronunciations`, preserve baseline regressions, and include the focused module in existing offline runtime/clean-wheel checks. No new dependency/tool pin or paid/default live call; no Node execution/vendor SDK.
 
 ## Verified offline evidence
+
+Indexed OOP refactor (`speech-e5w`): implementation self-verification recorded **21 focused**, **155 checkout** tests and **13 offline hooks** PASS in credential-free Python 3.11 with OS network denial. These are implementation checks, not independent QA or new wheel evidence.
+
+**Historical original substitution evidence (before the indexed OOP refactor):**
 
 - Tested checkout: `feat/pronunciation-substitutions`, base `0151e36` plus feature changes; implementation/test-fix logs record **148 checkout**, **14 focused**, **144 runtime-selection** tests PASS and **13 offline hooks** PASS.
 - Independent QA reran **148 checkout** and **14 focused** tests PASS after the equal-length Greek sigma golden fix; all **17 in-memory mutants killed**, including `.lower()` → `.casefold()`, without disk source mutation.

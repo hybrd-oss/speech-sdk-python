@@ -24,6 +24,7 @@ from speech_sdk import (
 from speech_sdk._http import RetryTiming
 from speech_sdk.pronunciations import (
     Edit,
+    PronunciationMatcher,
     SubstitutionResult,
     merge_rules,
     rule_map_key,
@@ -262,6 +263,135 @@ class PronunciationTests(unittest.TestCase):
             with self.subTest(manual_type=type(manual)), self.assertRaises(error) as invalid_map:
                 substitute("secret-input", cast(Mapping[str, Pronunciation], manual))
             self.assertNotIn("secret", str(invalid_map.exception))
+
+
+class PronunciationMatcherTests(unittest.TestCase):
+    def test_reuse_clones_rules_and_snapshots_mapping(self) -> None:
+        rule = Pronunciation("LLM", "el em")
+        manual = {"ignored": rule}
+        matcher = PronunciationMatcher(manual)
+        expected = substitute("LLM", manual)
+        manual.clear()
+        object.__setattr__(rule, "word", "changed")
+        object.__setattr__(rule, "replacement", "changed")
+        object.__setattr__(rule, "case_sensitive", 1)
+        self.assertEqual(matcher.substitute("LLM"), expected)
+        self.assertEqual(
+            matcher.substitute("llm!"),
+            substitute("llm!", merge_rules([Pronunciation("LLM", "el em")])),
+        )
+        self.assertEqual(matcher.substitute("other"), SubstitutionResult("other", ()))
+
+    def test_constructor_snapshots_values_before_validation(self) -> None:
+        from speech_sdk import pronunciations
+
+        manual = {"a": Pronunciation("a", "A"), "b": Pronunciation("b", "B")}
+        validate = pronunciations._validate_rule
+
+        def clear_map(rule: Pronunciation) -> None:
+            manual.clear()
+            validate(rule)
+
+        with patch.object(pronunciations, "_validate_rule", side_effect=clear_map):
+            matcher = PronunciationMatcher(manual)
+        self.assertEqual(matcher.substitute("a b").text, "A B")
+        self.assertEqual(manual, {})
+
+    def test_same_bucket_collisions_and_cross_bucket_rank(self) -> None:
+        cases = [
+            ([Pronunciation("LLM", "first"), Pronunciation("llm", "second")], "first"),
+            ([Pronunciation("LLM", "first", True), Pronunciation("LLM", "second", True)], "first"),
+            ([Pronunciation("llm", "first"), Pronunciation("LLM", "second", True)], "first"),
+            ([Pronunciation("LLM", "first", True), Pronunciation("llm", "second")], "first"),
+            (
+                [
+                    Pronunciation("other", "unused"),
+                    Pronunciation("llm", "second"),
+                    Pronunciation("LLM", "third", True),
+                ],
+                "second",
+            ),
+        ]
+        for rules, expected in cases:
+            with self.subTest(rules=rules):
+                manual = {str(rank): rule for rank, rule in enumerate(rules)}
+                result = PronunciationMatcher(manual).substitute("LLM")
+                self.assertEqual(result.text, expected)
+                self.assertEqual(result, substitute("LLM", manual))
+
+    def test_original_lengths_and_contextual_lowering(self) -> None:
+        cases = [
+            ("İ i i\u0307", [Pronunciation("İ", "X")], "X i i\u0307"),
+            ("ΟΣΑ ΟΣ", [Pronunciation("ΟΣ", "X")], "ΟΣΑ X"),
+            ("ΟΣΑ", [Pronunciation("ΟΣ", "X"), Pronunciation("\u0391", "Y")], "ΟΣΑ"),
+            # Sigma's lowercase depends on letters outside a punctuation-ended slice.
+            ("ΟΣ.\u0391", [Pronunciation("ΟΣ.", "X")], "X\u0391"),
+            ("ß SS ss", [Pronunciation("ß", "X")], "X SS ss"),
+        ]
+        for text, rules, expected in cases:
+            with self.subTest(text=text):
+                manual = merge_rules(rules)
+                result = PronunciationMatcher(manual).substitute(text)
+                self.assertEqual(result.text, expected)
+                self.assertEqual(result, substitute(text, manual))
+
+    def test_class_and_wrapper_equivalence_for_100_small_cases(self) -> None:
+        rules = merge_rules(
+            [
+                Pronunciation("a", "B"),
+                Pronunciation("a b", "phrase"),
+                Pronunciation("B", "C", True),
+                Pronunciation("[a]", "tag"),
+                Pronunciation("İ", "expanded"),
+                Pronunciation("\u03c3", "sigma"),
+            ]
+        )
+        matcher = PronunciationMatcher(rules)
+        pieces = ["", "a", "A", "B", "a b", "[a]", "İ", "i\u0307", "Σ", "a_"]
+        for left in pieces:
+            for right in pieces:
+                text = left + " " + right
+                with self.subTest(text=text):
+                    self.assertEqual(matcher.substitute(text), substitute(text, rules))
+
+    def test_lookup_count_independent_of_same_length_rule_count(self) -> None:
+        for count in (100, 1000):
+            matcher = PronunciationMatcher(
+                merge_rules(
+                    [Pronunciation(f"r{rank:04}", "hit", bool(rank % 2)) for rank in range(count)]
+                )
+            )
+            with patch.object(matcher, "_lookup", wraps=matcher._lookup) as lookup:
+                self.assertEqual(
+                    matcher.substitute("zzzzz zzzzz"), SubstitutionResult("zzzzz zzzzz", ())
+                )
+            self.assertEqual(lookup.call_count, 2)
+            self.assertEqual(
+                [call.args for call in lookup.call_args_list], [(5, "zzzzz"), (5, "zzzzz")]
+            )
+
+    def test_constructor_and_method_static_validation(self) -> None:
+        mutated = Pronunciation("secret", "replacement")
+        object.__setattr__(mutated, "replacement", StringSubclass("secret"))
+        for manual, error in (
+            ([], TypeError),
+            ({"ignored": mutated}, TypeError),
+            ({"ignored": RuleSubclass("a", "b")}, TypeError),
+            ({"ignored": Pronunciation(" a", "b")}, ValueError),
+            ({"ignored": Pronunciation("a", " ")}, ValueError),
+        ):
+            with self.subTest(manual=type(manual)), self.assertRaises(error) as caught:
+                PronunciationMatcher(cast(Mapping[str, Pronunciation], manual))
+            self.assertNotIn("secret", str(caught.exception))
+        for text in (None, 1, StringSubclass("secret")):
+            with self.assertRaises(TypeError) as invalid_text:
+                PronunciationMatcher({}).substitute(cast(str, text))
+            self.assertEqual(
+                str(invalid_text.exception), "Pronunciation text must be a plain string"
+            )
+        with self.assertRaises(TypeError) as invalid_order:
+            substitute(cast(str, None), cast(Mapping[str, Pronunciation], []))
+        self.assertEqual(str(invalid_order.exception), "Pronunciation text must be a plain string")
 
 
 def models() -> tuple[str | ResolvedModel, ...]:

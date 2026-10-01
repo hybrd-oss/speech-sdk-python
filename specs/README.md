@@ -33,7 +33,7 @@ Each implementation ships its own offline checks; 007 integrates the original tw
 
 ## Active priorities
 
-Seven-day cooldown covers native uv registry artifact resolution (runtime/dev, direct/transitive) and Dependabot uv/GitHub Actions version updates; frozen installs/exports use the reviewed lock without re-resolving ([policy and limits](../CONTRIBUTING.md#package-checks)). [Pronunciations (011)](011-pronunciation-substitutions.md#verified-offline-evidence) are implemented: independent offline QA/review and final documentation review passed, with 148 checkout tests and 144 runtime-selection tests per clean noneditable wheel on Python 3.11/3.14. Audio utilities/chunking, voice cloning and additional provider adapters are not current plans; pinned historical parity references remain context, not an active roadmap. No publication is claimed.
+Seven-day cooldown covers native uv registry artifact resolution (runtime/dev, direct/transitive) and Dependabot uv/GitHub Actions version updates; frozen installs/exports use the reviewed lock without re-resolving ([policy and limits](../CONTRIBUTING.md#package-checks)). [Pronunciations (011)](011-pronunciation-substitutions.md#verified-offline-evidence) are implemented. The initial functional slice passed independent QA/review with 148 checkout tests and 144 runtime tests per clean noneditable wheel on Python 3.11/3.14; these are historical counts before the indexed OOP refactor. Audio utilities/chunking, voice cloning and additional provider adapters are not current plans; pinned historical parity references remain context, not an active roadmap. No publication is claimed.
 
 ## Completion gate
 

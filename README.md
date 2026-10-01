@@ -204,6 +204,19 @@ assert result.edits[0].original_range == (11, 16)
 assert result.edits[0].replacement_range == (11, 17)
 ```
 
+For repeated **offline** inputs, compile once and reuse; the matcher snapshots/clones rules, so later input-map/rule changes do not affect it:
+
+```python
+from speech_sdk import Pronunciation
+from speech_sdk.pronunciations import PronunciationMatcher, merge_rules
+
+matcher = PronunciationMatcher(merge_rules([Pronunciation("HYBRD", "hybrid")]))
+result = matcher.substitute("Hello from HYBRD!")
+assert result.text == "Hello from hybrid!" and result.edits[0].original_range == (11, 16)
+```
+
+`PronunciationMatcher` is module-only, not a package-root export or an accepted `pronunciations=` value. Existing helpers remain compatible; `substitute(text, rule_map)` compiles for that one call. Length-indexed exact/lowercase dictionaries avoid checking every same-length rule; slicing/lowering/hashing still costs string length, so many distinct lengths are not unconditionally linear.
+
 `Edit`, `SubstitutionResult` and `rule_map_key` are also public in that module. Edit ranges are immutable, half-open Python Unicode code-point offsets, not UTF-16 or grapheme offsets. These edits belong to the pure helper result, **not** `SpeechResult` or `SpeechStream`; no transcript/alignment or audio changes are provided. Only canonical synthesis text changes, never instructions, voice or native options. Final text must fit provider limits; expansion can fail locally and contraction can fit. Both APIs' `metadata.input_chars` still counts the original caller text. `None`, empty or all-blank rules leave text unchanged; HTTP reuse/retries and streaming lifetime are unchanged. See [011 contract and offline evidence](specs/011-pronunciation-substitutions.md).
 
 ### Model IDs and constants
