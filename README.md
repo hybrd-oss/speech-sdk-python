@@ -46,7 +46,7 @@ Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only d
 
 ### Clone, install, run
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) first, then clone `main` (not a published PyPI package). uv manages the Python interpreter and environment:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) **0.12.18 or newer** first (update an older standalone installation with `uv self update 0.12.18`); root `uv.toml` enforces the minimum and seven-day registry cooldown, and unsupported uv 0.7.8 fails locally before execution; then clone `main` (not a published PyPI package). uv manages the Python interpreter and environment:
 
 ```sh
 git clone https://github.com/hybrd-oss/speech-sdk-python.git

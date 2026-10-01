@@ -32,7 +32,7 @@ Each implementation ships its own offline checks; 007 integrates the original tw
 
 ## Active priorities
 
-Seven-day dependency release cooldown is configured for uv and GitHub Actions ([policy and limits](../CONTRIBUTING.md#package-checks)). Focus next on the existing OpenAI/xAI/Azure providers: shared text/pronunciation handling, then PCM/WAV chunking and truthful timing. Voice cloning and additional provider adapters are not current plans; pinned historical parity references remain context, not an active roadmap.
+Seven-day cooldown covers native uv registry artifact resolution (runtime/dev, direct/transitive) and Dependabot uv/GitHub Actions version updates; frozen installs/exports use the reviewed lock without re-resolving ([policy and limits](../CONTRIBUTING.md#package-checks)). Focus next on the existing OpenAI/xAI/Azure providers: shared text/pronunciation handling, then PCM/WAV chunking and truthful timing. Voice cloning and additional provider adapters are not current plans; pinned historical parity references remain context, not an active roadmap.
 
 ## Completion gate
 
