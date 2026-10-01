@@ -30,6 +30,10 @@ Azure extension: 010 contract → implementation → independent offline QA/revi
 
 Each implementation ships its own offline checks; 007 integrates the original two-provider milestone and 010 records Azure evidence, rather than postponing testing to the end. Specs are work boundaries, not a requirement for one class/module per spec.
 
+## Active priorities
+
+Seven-day cooldown covers native uv registry artifact resolution (runtime/dev, direct/transitive) and Dependabot uv/GitHub Actions version updates; frozen installs/exports use the reviewed lock without re-resolving ([policy and limits](../CONTRIBUTING.md#package-checks)). Focus next on the existing OpenAI/xAI/Azure providers: shared text/pronunciation handling, then PCM/WAV chunking and truthful timing. Voice cloning and additional provider adapters are not current plans; pinned historical parity references remain context, not an active roadmap.
+
 ## Completion gate
 
 Milestone one's gate is **satisfied**: offline suite/package checks and a real xAI E2E passed through the public API for both buffered and streamed WAV. The clone-and-run smoke suite covers both providers; its explicit xAI run is the E2E gate. Future missing-key/skipped runs are not passing evidence and do not replace the recorded result. Live OpenAI verification remains desirable but is not the minimum completion gate. This historical gate does not establish Azure live success; its separate implementation/offline acceptance and deployment-blocked live attempt are recorded in 010.
