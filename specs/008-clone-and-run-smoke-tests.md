@@ -16,12 +16,11 @@ Anyone with [uv](https://docs.astral.sh/uv/getting-started/installation/) and th
 
 ## Clone-and-run contract
 
-Install uv first; use it to manage Python and the environment. Clone-and-run commands (checkout `feat/two-provider-tts` until merged):
+Install uv first; use it to manage Python and the environment. Clone-and-run commands from `main` (the feature is merged):
 
 ```sh
 git clone https://github.com/hybrd-oss/speech-sdk-python.git
 cd speech-sdk-python
-git checkout feat/two-provider-tts
 uv sync --frozen --no-dev --python 3.11
 
 # Set either or both using your own credentials:

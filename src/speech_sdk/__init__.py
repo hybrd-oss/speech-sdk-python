@@ -7,6 +7,7 @@ from .providers import (
     DEFAULT_XAI_MODEL,
     OPENAI_MODELS,
     XAI_MODELS,
+    AzureOpenAIProvider,
     OpenAIProvider,
     XAIProvider,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "XAI_MODELS",
     "AudioData",
     "AudioOutput",
+    "AzureOpenAIProvider",
     "MissingApiKeyError",
     "NoSpeechGeneratedError",
     "OpenAIProvider",

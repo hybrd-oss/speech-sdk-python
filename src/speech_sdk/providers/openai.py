@@ -49,6 +49,9 @@ _PROTECTED_FIELDS = {
     "headers",
     "authorization",
     "api_key",
+    "api_version",
+    "timestamps",
+    "with_timestamps",
     "base_url",
     "url",
     "method",
@@ -79,7 +82,7 @@ def _validate_speed(options: Mapping[str, object]) -> None:
         raise ValueError("Speed must be finite and between 0.25 and 4.0")
 
 
-def _instructions(canonical: str | None, options: dict[str, object], model: str) -> None:
+def _instructions(canonical: str | None, options: dict[str, object], model: str | None) -> None:
     values: list[str] = []
     if canonical is not None:
         if not isinstance(canonical, str):
@@ -122,6 +125,28 @@ def _output(options: dict[str, object], output: AudioOutput | None) -> str:
     return _MEDIA_TYPES[native]
 
 
+def _speech_body(
+    *,
+    model: str,
+    text: str,
+    voice: str,
+    output: AudioOutput | None,
+    instructions: str | None,
+    provider_options: Mapping[str, object] | None,
+    deployment: bool = False,
+) -> tuple[dict[str, object], str, int]:
+    input_chars = validate_text_voice(text, voice, 4096)
+    body = copy_options(provider_options)
+    _validate_option_names(body)
+    _validate_speed(body)
+    if "stream_format" in body and body["stream_format"] != "audio":
+        raise ValueError("Only binary audio stream_format is supported")
+    _instructions(instructions, body, None if deployment else model)
+    media_type = _output(body, output)
+    body.update(model=model, input=text, voice=voice, stream_format="audio")
+    return body, media_type, input_chars
+
+
 @dataclass(frozen=True)
 class OpenAIProvider:
     """Configuration only; custom base URLs intentionally receive the bearer key."""
@@ -152,15 +177,14 @@ class OpenAIProvider:
         headers: Mapping[str, str] | None,
     ) -> PreparedRequest:
         model = validate_model_id(model_id)
-        input_chars = validate_text_voice(text, voice, 4096)
-        body = copy_options(provider_options)
-        _validate_option_names(body)
-        _validate_speed(body)
-        if "stream_format" in body and body["stream_format"] != "audio":
-            raise ValueError("Only binary audio stream_format is supported")
-        _instructions(instructions, body, model)
-        media_type = _output(body, output)
-        body.update(model=model, input=text, voice=voice, stream_format="audio")
+        body, media_type, input_chars = _speech_body(
+            model=model,
+            text=text,
+            voice=voice,
+            output=output,
+            instructions=instructions,
+            provider_options=provider_options,
+        )
         key = resolve_api_key("openai", "OPENAI_API_KEY", explicit=api_key, configured=self.api_key)
         return prepare_request(
             provider=self.name,
