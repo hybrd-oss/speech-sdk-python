@@ -4,16 +4,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
   group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/release') }}
 
 jobs:
   quality:
+    needs: runtime
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -31,8 +33,16 @@ jobs:
         run: uv sync --frozen --python 3.11
       - name: Run the same gates as local hooks
         run: uv run --frozen prek run --all-files
+      - name: Validate release source
+        if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+        run: uv run --frozen python scripts/check_release.py validate-source
+      - name: Clear generated build output
+        run: uv run --frozen python scripts/check_release.py clean
       - name: Build distributions
         run: uv run --frozen python -m build
+      - name: Validate release bundle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+        run: uv run --frozen python scripts/check_release.py check-bundle
       - name: Verify clean wheel installation
         shell: bash
         run: |
@@ -46,6 +56,15 @@ jobs:
           cd /tmp/speech-sdk-installed
           env -u XAI_API_KEY -u OPENAI_API_KEY /tmp/speech-sdk-wheel/bin/python -m unittest discover -s tests -v
           /tmp/speech-sdk-wheel/bin/python -c 'from importlib.resources import files; import speech_sdk; assert files(speech_sdk).joinpath("py.typed").is_file(); assert "site-packages" in speech_sdk.__file__'
+      - name: Upload validated release distributions
+        if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-dist-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
 
   runtime:
     runs-on: ubuntu-24.04
