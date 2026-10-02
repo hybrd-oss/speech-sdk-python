@@ -38,7 +38,7 @@ An independent HYBRD OSS port, not an official Jellypod release or affiliated wi
 
 Recorded milestone on `3adfb10`: **108 offline tests**, **13 fully offline hooks**, and **104 runtime tests against clean noneditable wheels on Python 3.11 and 3.14**. These are historical milestone counts, not the current generic-model suite count. Exact setup and provenance are recorded in the validation evidence; these are not live OpenAI or listening checks.
 
-**Azure OpenAI: implemented with offline verification; live UNVERIFIED.** Current Azure source based on `44b1c71` plus uncommitted changes passed **134 offline tests** (**18 Azure**), **13 offline hooks**, and **130 runtime tests per clean noneditable wheel on Python 3.11 and 3.14** (2026-09-30). Independent QA/review passed; hook logs were independently inspected, not rerun by QA. One authorized buffered speech request using explicit candidate `gpt-4o-mini-tts` returned **HTTP 404**, safely classified as deployment unavailable; streaming stopped with **zero requests** and no audio artifact. The request reached Azure, but does not verify authorization or a working TTS deployment. This deployment-configuration blocker is not a failure to implement the SDK. See [offline evidence](specs/010-azure-openai-tts.md#offline-evidence) and [live attempt](specs/010-azure-openai-tts.md#live-attempt). Final independent documentation review (`speech-b6t.10`) **PASS**; no publication is claimed.
+**Azure OpenAI: implemented with offline verification; live UNVERIFIED.** Recorded Azure implementation based on `44b1c71` plus then-uncommitted changes passed **134 offline tests** (**18 Azure**), **13 offline hooks**, and **130 runtime tests per clean noneditable wheel on Python 3.11 and 3.14** (2026-09-30). Independent QA/review passed; hook logs were independently inspected, not rerun by QA. One authorized buffered speech request using explicit candidate `gpt-4o-mini-tts` returned **HTTP 404**, safely classified as deployment unavailable; streaming stopped with **zero requests** and no audio artifact. The request reached Azure, but does not verify authorization or a working TTS deployment. This deployment-configuration blocker is not a failure to implement the SDK. See [offline evidence](specs/010-azure-openai-tts.md#offline-evidence) and [live attempt](specs/010-azure-openai-tts.md#live-attempt). Final independent documentation review (`speech-b6t.10`) **PASS**; no publication is claimed.
 
 Python 3.11+; offline runtime checks target 3.11 and 3.14. `httpx` is the only direct runtime dependency.
 
@@ -217,7 +217,40 @@ assert result.text == "Hello from hybrid!" and result.edits[0].original_range ==
 
 `PronunciationMatcher` is module-only, not a package-root export or an accepted `pronunciations=` value. Existing helpers remain compatible; `substitute(text, rule_map)` compiles for that one call. Length-indexed exact/lowercase dictionaries avoid checking every same-length rule; slicing/lowering/hashing still costs string length, so many distinct lengths are not unconditionally linear.
 
-`Edit`, `SubstitutionResult` and `rule_map_key` are also public in that module. Edit ranges are immutable, half-open Python Unicode code-point offsets, not UTF-16 or grapheme offsets. These edits belong to the pure helper result, **not** `SpeechResult` or `SpeechStream`; no transcript/alignment or audio changes are provided. Only canonical synthesis text changes, never instructions, voice or native options. Final text must fit provider limits; expansion can fail locally and contraction can fit. Both APIs' `metadata.input_chars` still counts the original caller text. `None`, empty or all-blank rules leave text unchanged; HTTP reuse/retries and streaming lifetime are unchanged. See [011 contract and offline evidence](specs/011-pronunciation-substitutions.md).
+`Edit`, `SubstitutionResult` and `rule_map_key` are also public in that module. Edit ranges are immutable, half-open Python Unicode code-point offsets, not UTF-16 or grapheme offsets. Both `SpeechResult.pronunciations` and `SpeechStream.pronunciations` now retain this same report from synthesis; no transcript/alignment or audio changes are provided. Only canonical synthesis text changes, never instructions, voice or native options. Final text must fit provider limits; expansion can fail locally and contraction can fit. Both APIs' `metadata.input_chars` still counts the original caller text. `None`, empty or all-blank rules leave text unchanged; HTTP reuse/retries and streaming lifetime are unchanged. See [011 contract and offline evidence](specs/011-pronunciation-substitutions.md).
+
+### Inspecting synthesis results
+
+Successful buffered results and streams expose frozen `request` and `response` snapshots, plus the retained `pronunciations` report when rules were supplied. All three fields are appended with `None` defaults for backward-compatible construction. `RequestDetails` and `ResponseDetails` are exported from both `speech_sdk` and `speech_sdk.types`; `SubstitutionResult` remains in `speech_sdk.pronunciations`.
+
+Read an existing result (or `stream` inside its context); this example makes **no HTTP request** and does not print private values:
+
+```python
+import json
+
+# result is an existing SpeechResult or SpeechStream.
+if result.request is not None:
+    method, url = result.request.method, result.request.url
+    prepared_json_bytes = result.request.content
+    payload = json.loads(prepared_json_bytes)  # Explicit, private JSON inspection.
+if result.response is not None:
+    status_code = result.response.status_code
+    selected_headers = result.response.headers
+    request_id = selected_headers.get("x-request-id")
+if result.pronunciations is not None:
+    final_text = result.pronunciations.text
+    edits = result.pronunciations.edits
+```
+
+`request.content` is the exact **SDK-prepared outbound JSON bytes**, including final substituted text; `method` is `POST`. It is not a forensic wire capture: later caller HTTPX hook/custom-transport mutations are not reflected. No request headers, auth snapshot, live HTTPX objects or response body are exposed. Existing `provider_metadata` remains `None`.
+
+`response` describes only the final accepted attempt after setup retries. Its headers are copied into a read-only `MappingProxyType`, with lowercase names and this finite 13-header allowlist: `content-type`, `content-length`, `request-id`, `x-request-id`, `apim-request-id`, `x-ms-request-id`, `retry-after`, `x-ratelimit-limit-requests`, `x-ratelimit-limit-tokens`, `x-ratelimit-remaining-requests`, `x-ratelimit-remaining-tokens`, `x-ratelimit-reset-requests`, `x-ratelimit-reset-tokens`. Missing headers are absent; auth, cookies and unknown headers are excluded, not arbitrary `x-*` headers retained.
+
+Omitted/`None` pronunciation rules yield `pronunciations=None`; explicit empty, all-blank or nonmatching rules yield unchanged text and `edits=()`. Matches retain the actual single-pass report without matching again or making another request; `metadata.input_chars` still counts original input.
+
+Stream snapshots are ready at context entry **without reading, prefetching or buffering audio** and remain usable after close; audio is still single-pass and invalid outside the context. Accepted headers do not guarantee eventual nonempty audio or successful stream completion.
+
+New fields are hidden from result/stream repr; both details types suppress field repr too. This does **not** redact explicit attribute access, JSON parsing, serialization or caller logging: URLs, prepared text/options, report text/edits and allowed header values remain private/untrusted. The offline report's existing repr is unchanged. See [012 contract and verification status](specs/012-composite-result-inspection.md).
 
 ### Model IDs and constants
 

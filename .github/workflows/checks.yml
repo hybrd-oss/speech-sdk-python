@@ -41,7 +41,7 @@ jobs:
           uv pip install --python /tmp/speech-sdk-wheel/bin/python --require-hashes -r /tmp/speech-sdk-runtime.txt
           uv pip install --python /tmp/speech-sdk-wheel/bin/python --no-deps dist/*.whl
           mkdir -p /tmp/speech-sdk-installed/tests
-          cp tests/test_api.py tests/test_azure.py tests/test_streaming.py tests/test_smoke.py tests/test_pronunciations.py /tmp/speech-sdk-installed/tests/
+          cp tests/test_api.py tests/test_azure.py tests/test_streaming.py tests/test_smoke.py tests/test_pronunciations.py tests/test_result_details.py /tmp/speech-sdk-installed/tests/
           cp -r smoke /tmp/speech-sdk-installed/
           cd /tmp/speech-sdk-installed
           env -u XAI_API_KEY -u OPENAI_API_KEY /tmp/speech-sdk-wheel/bin/python -m unittest discover -s tests -v
@@ -72,4 +72,4 @@ jobs:
         run: >-
           env -u XAI_API_KEY -u OPENAI_API_KEY
           uv run --frozen --no-dev python -m unittest -v
-          test_core test_http test_openai test_azure test_xai test_api test_streaming test_smoke test_pronunciations
+          test_core test_http test_openai test_azure test_xai test_api test_streaming test_smoke test_pronunciations test_result_details

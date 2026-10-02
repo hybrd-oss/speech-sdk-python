@@ -2,16 +2,21 @@
 
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Literal, Protocol
 
 import httpx
+
+from .pronunciations import SubstitutionResult
 
 __all__ = [
     "AudioData",
     "AudioOutput",
     "PreparedRequest",
     "Provider",
+    "RequestDetails",
     "ResolvedModel",
+    "ResponseDetails",
     "SpeechMetadata",
     "SpeechResult",
     "SpeechStream",
@@ -52,6 +57,26 @@ class StreamMetadata:
     setup_latency_ms: float = 0.0
 
 
+@dataclass(frozen=True, repr=False)
+class RequestDetails:
+    """Private SDK-prepared JSON bytes, not caller hook/transport mutations."""
+
+    method: str
+    url: str
+    content: bytes
+
+
+@dataclass(frozen=True, repr=False)
+class ResponseDetails:
+    """Private selected headers from the final accepted response, copied read-only."""
+
+    status_code: int
+    headers: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "headers", MappingProxyType(dict(self.headers)))
+
+
 @dataclass(frozen=True)
 class SpeechResult:
     audio: AudioData
@@ -60,6 +85,9 @@ class SpeechResult:
     metadata: SpeechMetadata = field(default_factory=SpeechMetadata)
     provider_metadata: Mapping[str, object] | None = None
     warnings: tuple[str, ...] = ()
+    request: RequestDetails | None = field(default=None, repr=False)
+    response: ResponseDetails | None = field(default=None, repr=False)
+    pronunciations: SubstitutionResult | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -73,6 +101,9 @@ class SpeechStream:
     metadata: StreamMetadata
     provider_metadata: Mapping[str, object] | None = None
     warnings: tuple[str, ...] = ()
+    request: RequestDetails | None = field(default=None, repr=False)
+    response: ResponseDetails | None = field(default=None, repr=False)
+    pronunciations: SubstitutionResult | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, repr=False)
@@ -88,6 +119,7 @@ class PreparedRequest:
     max_retries: int
     media_type: str
     input_chars: int
+    pronunciations: SubstitutionResult | None = None
 
 
 class Provider(Protocol):

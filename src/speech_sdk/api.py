@@ -16,7 +16,9 @@ from .types import (
     AudioData,
     AudioOutput,
     PreparedRequest,
+    RequestDetails,
     ResolvedModel,
+    ResponseDetails,
     SpeechMetadata,
     SpeechResult,
     SpeechStream,
@@ -24,6 +26,40 @@ from .types import (
 )
 
 __all__ = ["generate_speech", "stream_speech"]
+
+_RESPONSE_HEADERS = frozenset(
+    (
+        "content-type",
+        "content-length",
+        "request-id",
+        "x-request-id",
+        "apim-request-id",
+        "x-ms-request-id",
+        "retry-after",
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-limit-tokens",
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-reset-requests",
+        "x-ratelimit-reset-tokens",
+    )
+)
+
+
+def _details(
+    prepared: PreparedRequest, response: httpx.Response
+) -> tuple[RequestDetails, ResponseDetails]:
+    return (
+        RequestDetails("POST", prepared.url, prepared.content),
+        ResponseDetails(
+            response.status_code,
+            {
+                name.lower(): value
+                for name, value in response.headers.items()
+                if name.lower() in _RESPONSE_HEADERS
+            },
+        ),
+    )
 
 
 def _configured_model(model: ResolvedModel) -> ResolvedModel:
@@ -59,9 +95,8 @@ def _prepare(
     max_retries: int,
     headers: Mapping[str, str] | None,
 ) -> PreparedRequest:
-    final_text = text
-    if pronunciations is not None:
-        final_text = substitute(text, merge_rules(pronunciations)).text
+    report = None if pronunciations is None else substitute(text, merge_rules(pronunciations))
+    final_text = text if report is None else report.text
     prepared = resolved.provider.prepare(
         model_id=resolved.model_id,
         text=final_text,
@@ -74,7 +109,11 @@ def _prepare(
         max_retries=max_retries,
         headers=headers,
     )
-    return prepared if pronunciations is None else replace(prepared, input_chars=len(text))
+    return (
+        prepared
+        if report is None
+        else replace(prepared, input_chars=len(text), pronunciations=report)
+    )
 
 
 async def generate_speech(
@@ -108,11 +147,15 @@ async def generate_speech(
         headers=headers,
     )
     async with _http.open_response(prepared, client=http_client, buffered=True) as opened:
+        request, response = _details(prepared, opened.response)
         return SpeechResult(
             audio=AudioData(opened.response.content, opened.media_type),
             provider=prepared.provider,
             model=prepared.model,
             metadata=SpeechMetadata(prepared.input_chars, (time.monotonic() - started) * 1000),
+            request=request,
+            response=response,
+            pronunciations=prepared.pronunciations,
         )
 
 
@@ -180,12 +223,16 @@ async def _stream(
             setup = opened.setup_latency_ms
             if setup is None:
                 raise RuntimeError("Streaming response missing setup timing")
+            request, response = _details(prepared, opened.response)
             yield SpeechStream(
                 audio=audio,
                 media_type=opened.media_type,
                 provider=prepared.provider,
                 model=prepared.model,
                 metadata=StreamMetadata(prepared.input_chars, setup),
+                request=request,
+                response=response,
+                pronunciations=prepared.pronunciations,
             )
         finally:
             audio.active = False

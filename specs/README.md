@@ -17,7 +17,8 @@ Historical milestone evidence on `3adfb10`: **108 offline tests**, **13 fully of
 | [007](007-validation-and-xai-e2e.md) | Offline coverage, live xAI completion gate, package/CI checks | 004, 005, 006, 008 |
 | [008](008-clone-and-run-smoke-tests.md) | Clone-and-run smoke suite for anyone with provider keys | 004, 005, 006 |
 | [010](010-azure-openai-tts.md) | Azure OpenAI v1 preview, API-key auth — implemented/offline PASS, live UNVERIFIED | 002, 003, 004, 006 |
-| [011](011-pronunciation-substitutions.md) | Typed literal pronunciation substitutions — implemented/offline acceptance PASS | 002, 003, 004, 005, 006, 010 |
+| [011](011-pronunciation-substitutions.md) | Typed literal pronunciation substitutions — implemented; original acceptance and historical indexed QA/wheel checks PASS | 002, 003, 004, 005, 006, 010 |
+| [012](012-composite-result-inspection.md) | Additive request/response snapshots and retained pronunciation reports — independent QA/review and wheel/type checks PASS; final commit/CI pending | 002, 003, 006, 010, 011 |
 
 Implementation order:
 
@@ -33,7 +34,7 @@ Each implementation ships its own offline checks; 007 integrates the original tw
 
 ## Active priorities
 
-Seven-day cooldown covers native uv registry artifact resolution (runtime/dev, direct/transitive) and Dependabot uv/GitHub Actions version updates; frozen installs/exports use the reviewed lock without re-resolving ([policy and limits](../CONTRIBUTING.md#package-checks)). [Pronunciations (011)](011-pronunciation-substitutions.md#verified-offline-evidence) are implemented. The initial functional slice passed independent QA/review with 148 checkout tests and 144 runtime tests per clean noneditable wheel on Python 3.11/3.14; these are historical counts before the indexed OOP refactor. Audio utilities/chunking, voice cloning and additional provider adapters are not current plans; pinned historical parity references remain context, not an active roadmap. No publication is claimed.
+Seven-day cooldown covers native uv registry artifact resolution (runtime/dev, direct/transitive) and Dependabot uv/GitHub Actions version updates; frozen installs/exports use the reviewed lock without re-resolving ([policy and limits](../CONTRIBUTING.md#package-checks)). [Pronunciations (011)](011-pronunciation-substitutions.md#verified-offline-evidence) are implemented. The initial functional slice passed independent QA/review with 148 checkout tests and 144 runtime tests per clean noneditable wheel on Python 3.11/3.14; these are historical counts before the indexed OOP refactor. The indexed refactor at `28b31c9` has historical independent QA/review PASS (155 checkout tests) and clean noneditable wheel PASS (151 runtime tests each on Python 3.11/3.14), recorded in `speech-yay`/`speech-7h6`. [Composite inspection (012)](012-composite-result-inspection.md#verified-offline-evidence) now has independent QA/review PASS (165 checkout and 10 focused tests each; QA also 13 hooks and 8 detected in-memory mutants), fresh noneditable wheel PASS (161 runtime tests each on Python 3.11/3.14) and external strict mypy PASS (valid consumer plus 4 intended invalid-consumer errors), recorded 2026-10-02 in clean, network-denied environments. Current priority is final commit and exact-HEAD CI, both PENDING; main/release planning is separate future work. Pinned historical parity references remain context, not an active roadmap. No publication is claimed.
 
 ## Completion gate
 
