@@ -2,7 +2,7 @@
 
 **Historical milestone one, as of `3adfb10` (2026-09-30):** OpenAI/xAI public APIs had offline coverage, and real xAI buffered + streamed WAV checks **PASS**. Recorded evidence: **108 offline tests**, **13 fully offline hooks**, and **104 runtime tests against clean noneditable wheels on Python 3.11 and 3.14**; these are historical counts, not current Azure gate results. See [validation evidence](specs/007-validation-and-xai-e2e.md) for exact setup and provenance. Live OpenAI is **UNVERIFIED** (key absent). Manual listening was **NOT DONE at that milestone**; subsequently the user listened to buffered xAI and `tags-demo.wav` and said they “sound great” ([README status](README.md#status)). That subjective report is not formal streamed-audio/expected-words or STT verification; STT remains deferred. No PyPI release or full upstream parity is claimed. Smoke execution remains explicitly paid/opt-in. Status and intentional differences are in [specs/](specs/README.md).
 
-**Current Azure extension (2026-09-30):** implemented with independent QA/review PASS: **134 offline tests (18 Azure)**, **13 offline hooks** from implementation logs independently inspected, and **130 runtime tests each against clean noneditable wheels on Python 3.11/3.14**, with `UV_OFFLINE=1`, OS network denial and provider keys/configuration unset. Tested source is `44b1c71` plus uncommitted Azure changes, not a committed Azure SHA. One authorized buffered live attempt returned HTTP 404/deployment unavailable; zero streamed requests, no audio, and authorization unknown. Live Azure is **UNVERIFIED**. See [010 offline evidence](specs/010-azure-openai-tts.md#offline-evidence) and [live attempt](specs/010-azure-openai-tts.md#live-attempt). Final independent documentation/evidence review and post-doc metadata rebuild remain pending; no future commit/hook/publication result is claimed.
+**Current Azure extension (2026-09-30):** implemented with independent QA/review PASS: **134 offline tests (18 Azure)**, **13 offline hooks** from implementation logs independently inspected, and **130 runtime tests each against clean noneditable wheels on Python 3.11/3.14**, with `UV_OFFLINE=1`, OS network denial and provider keys/configuration unset. Tested source is `44b1c71` plus uncommitted Azure changes, not a committed Azure SHA. One authorized buffered live attempt returned HTTP 404/deployment unavailable; zero streamed requests, no audio, and authorization unknown. Live Azure is **UNVERIFIED**. See [010 offline evidence](specs/010-azure-openai-tts.md#offline-evidence) and [live attempt](specs/010-azure-openai-tts.md#live-attempt). Final independent documentation/evidence review (`speech-b6t.10`) passed; no publication is claimed.
 
 ## Setup
 
@@ -71,7 +71,7 @@ uv sync --frozen --no-dev --python 3.11
 
 See [README](README.md#clone-install-run) for smoke commands and POSIX/PowerShell key configuration.
 
-Tools stay on Python 3.11. Runtime CI uses Python 3.11 and 3.14 without dev dependencies. Select SDK test modules explicitly: `test_quality_tools` imports Radon and must not be imported in runtime-only jobs. The local test commands below remove provider keys/configuration, including unused `AZURE_API_KEY`; `UV_OFFLINE=1` requires previously cached dependencies/interpreters. CI currently unsets only OpenAI/xAI keys, but its credentialless jobs receive no API secrets and make no provider calls. Azure implementation QA/review passed; final independent documentation review remains pending. Including Azure tests does not change historical 007 evidence or verify live synthesis.
+Tools stay on Python 3.11. Runtime CI uses Python 3.11 and 3.14 without dev dependencies. Select SDK test modules explicitly: `test_quality_tools` imports Radon and must not be imported in runtime-only jobs. The local test commands below remove provider keys/configuration, including unused `AZURE_API_KEY`; `UV_OFFLINE=1` requires previously cached dependencies/interpreters. CI currently unsets only OpenAI/xAI keys, but its credentialless jobs receive no API secrets and make no provider calls. Azure implementation and final documentation QA/review passed. Including Azure tests does not change historical 007 evidence or verify live synthesis. Pronunciation tests use pure helpers and MockTransport, never paid calls; current feature evidence is separate in [011](specs/011-pronunciation-substitutions.md#verified-offline-evidence).
 
 ```sh
 uv sync --frozen --no-dev --python 3.14
@@ -80,7 +80,7 @@ PYTHONPATH=tests UV_OFFLINE=1 env -u XAI_API_KEY -u OPENAI_API_KEY \
   -u AZURE_OPENAI_ENDPOINT -u AZURE_OPENAI_DEPLOYMENT_NAME \
   -u OPENAI_BASE_URL -u OPENAI_API_VERSION \
   uv run --frozen --no-dev python -m unittest -v \
-  test_core test_http test_openai test_azure test_xai test_api test_streaming test_smoke
+  test_core test_http test_openai test_azure test_xai test_api test_streaming test_smoke test_pronunciations
 # Restore tool environment before running prek:
 uv sync --frozen --python 3.11
 ```
@@ -94,7 +94,7 @@ uv venv /tmp/speech-sdk-wheel --python 3.11
 uv pip install --python /tmp/speech-sdk-wheel/bin/python --require-hashes -r /tmp/speech-sdk-runtime.txt
 uv pip install --python /tmp/speech-sdk-wheel/bin/python --no-deps dist/*.whl
 mkdir -p /tmp/speech-sdk-installed/tests
-cp tests/test_api.py tests/test_azure.py tests/test_streaming.py tests/test_smoke.py /tmp/speech-sdk-installed/tests/
+cp tests/test_api.py tests/test_azure.py tests/test_streaming.py tests/test_smoke.py tests/test_pronunciations.py /tmp/speech-sdk-installed/tests/
 cp -r smoke /tmp/speech-sdk-installed/
 (cd /tmp/speech-sdk-installed && UV_OFFLINE=1 env -u PYTHONPATH \
   -u XAI_API_KEY -u OPENAI_API_KEY -u AZURE_API_KEY -u AZURE_OPENAI_API_KEY \
@@ -102,6 +102,8 @@ cp -r smoke /tmp/speech-sdk-installed/
   -u OPENAI_BASE_URL -u OPENAI_API_VERSION \
   /tmp/speech-sdk-wheel/bin/python -m unittest discover -s tests -v)
 ```
+
+The copied-wheel selection matches CI: API (13), Azure (18), streaming (10), smoke (30) and pronunciation (14), **85 tests**. This is a subset of the **144-test** runtime module selection above, not evidence that fresh pronunciation wheels have already passed.
 
 The wheel install must follow hash-required runtime export/install, not replace it with an isolated `--no-deps` wheel install. Inspect sdist/wheel contents for license, attribution metadata, `py.typed`, runtime modules, and absence of secrets/audio/test artifacts. Validate CI edits with `actionlint .github/workflows/checks.yml`; preserve read-only permissions and SHA pins.
 

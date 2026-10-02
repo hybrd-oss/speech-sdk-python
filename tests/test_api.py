@@ -54,6 +54,7 @@ class APITests(unittest.IsolatedAsyncioTestCase):
                 "voice",
                 "output",
                 "instructions",
+                "pronunciations",
                 "provider_options",
                 "api_key",
                 "http_client",

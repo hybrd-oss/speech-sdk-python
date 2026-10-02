@@ -2,6 +2,7 @@
 
 from .api import generate_speech, stream_speech
 from .errors import MissingApiKeyError, NoSpeechGeneratedError, ProviderError, SpeechSDKError
+from .pronunciations import Pronunciation
 from .providers import (
     DEFAULT_OPENAI_MODEL,
     DEFAULT_XAI_MODEL,
@@ -14,7 +15,9 @@ from .providers import (
 from .types import (
     AudioData,
     AudioOutput,
+    RequestDetails,
     ResolvedModel,
+    ResponseDetails,
     SpeechMetadata,
     SpeechResult,
     SpeechStream,
@@ -32,8 +35,11 @@ __all__ = [
     "MissingApiKeyError",
     "NoSpeechGeneratedError",
     "OpenAIProvider",
+    "Pronunciation",
     "ProviderError",
+    "RequestDetails",
     "ResolvedModel",
+    "ResponseDetails",
     "SpeechMetadata",
     "SpeechResult",
     "SpeechSDKError",

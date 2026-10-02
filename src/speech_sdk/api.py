@@ -1,20 +1,24 @@
 """Buffered synthesis and single-pass, context-managed HTTP audio streaming."""
 
 import time
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import replace
 
 import httpx
 
 from . import _http
 from ._validation import validate_model_id
 from .errors import NoSpeechGeneratedError
+from .pronunciations import Pronunciation, merge_rules, substitute
 from .providers import AzureOpenAIProvider, OpenAIProvider, XAIProvider
 from .types import (
     AudioData,
     AudioOutput,
     PreparedRequest,
+    RequestDetails,
     ResolvedModel,
+    ResponseDetails,
     SpeechMetadata,
     SpeechResult,
     SpeechStream,
@@ -22,6 +26,40 @@ from .types import (
 )
 
 __all__ = ["generate_speech", "stream_speech"]
+
+_RESPONSE_HEADERS = frozenset(
+    (
+        "content-type",
+        "content-length",
+        "request-id",
+        "x-request-id",
+        "apim-request-id",
+        "x-ms-request-id",
+        "retry-after",
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-limit-tokens",
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-reset-requests",
+        "x-ratelimit-reset-tokens",
+    )
+)
+
+
+def _details(
+    prepared: PreparedRequest, response: httpx.Response
+) -> tuple[RequestDetails, ResponseDetails]:
+    return (
+        RequestDetails("POST", prepared.url, prepared.content),
+        ResponseDetails(
+            response.status_code,
+            {
+                name.lower(): value
+                for name, value in response.headers.items()
+                if name.lower() in _RESPONSE_HEADERS
+            },
+        ),
+    )
 
 
 def _configured_model(model: ResolvedModel) -> ResolvedModel:
@@ -43,6 +81,41 @@ def _resolve(model: str | ResolvedModel) -> ResolvedModel:
     raise ValueError("Unknown speech provider")
 
 
+def _prepare(
+    resolved: ResolvedModel,
+    text: str,
+    pronunciations: Sequence[Pronunciation] | None,
+    *,
+    voice: str,
+    output: AudioOutput | None,
+    instructions: str | None,
+    provider_options: Mapping[str, object] | None,
+    api_key: str | None,
+    timeout: float | httpx.Timeout,
+    max_retries: int,
+    headers: Mapping[str, str] | None,
+) -> PreparedRequest:
+    report = None if pronunciations is None else substitute(text, merge_rules(pronunciations))
+    final_text = text if report is None else report.text
+    prepared = resolved.provider.prepare(
+        model_id=resolved.model_id,
+        text=final_text,
+        voice=voice,
+        output=output,
+        instructions=instructions,
+        provider_options=provider_options,
+        api_key=api_key,
+        timeout=timeout,
+        max_retries=max_retries,
+        headers=headers,
+    )
+    return (
+        prepared
+        if report is None
+        else replace(prepared, input_chars=len(text), pronunciations=report)
+    )
+
+
 async def generate_speech(
     *,
     model: str | ResolvedModel,
@@ -50,6 +123,7 @@ async def generate_speech(
     voice: str,
     output: AudioOutput | None = None,
     instructions: str | None = None,
+    pronunciations: Sequence[Pronunciation] | None = None,
     provider_options: Mapping[str, object] | None = None,
     api_key: str | None = None,
     http_client: httpx.AsyncClient | None = None,
@@ -59,9 +133,10 @@ async def generate_speech(
 ) -> SpeechResult:
     started = time.monotonic()
     resolved = _resolve(model)
-    prepared = resolved.provider.prepare(
-        model_id=resolved.model_id,
-        text=text,
+    prepared = _prepare(
+        resolved,
+        text,
+        pronunciations,
         voice=voice,
         output=output,
         instructions=instructions,
@@ -72,11 +147,15 @@ async def generate_speech(
         headers=headers,
     )
     async with _http.open_response(prepared, client=http_client, buffered=True) as opened:
+        request, response = _details(prepared, opened.response)
         return SpeechResult(
             audio=AudioData(opened.response.content, opened.media_type),
             provider=prepared.provider,
             model=prepared.model,
             metadata=SpeechMetadata(prepared.input_chars, (time.monotonic() - started) * 1000),
+            request=request,
+            response=response,
+            pronunciations=prepared.pronunciations,
         )
 
 
@@ -144,12 +223,16 @@ async def _stream(
             setup = opened.setup_latency_ms
             if setup is None:
                 raise RuntimeError("Streaming response missing setup timing")
+            request, response = _details(prepared, opened.response)
             yield SpeechStream(
                 audio=audio,
                 media_type=opened.media_type,
                 provider=prepared.provider,
                 model=prepared.model,
                 metadata=StreamMetadata(prepared.input_chars, setup),
+                request=request,
+                response=response,
+                pronunciations=prepared.pronunciations,
             )
         finally:
             audio.active = False
@@ -162,6 +245,7 @@ def stream_speech(
     voice: str,
     output: AudioOutput | None = None,
     instructions: str | None = None,
+    pronunciations: Sequence[Pronunciation] | None = None,
     provider_options: Mapping[str, object] | None = None,
     api_key: str | None = None,
     http_client: httpx.AsyncClient | None = None,
@@ -174,9 +258,10 @@ def stream_speech(
     @asynccontextmanager
     async def managed() -> AsyncIterator[SpeechStream]:
         resolved = _resolve(model)
-        prepared = resolved.provider.prepare(
-            model_id=resolved.model_id,
-            text=text,
+        prepared = _prepare(
+            resolved,
+            text,
+            pronunciations,
             voice=voice,
             output=output,
             instructions=instructions,
