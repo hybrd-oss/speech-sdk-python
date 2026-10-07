@@ -45,7 +45,7 @@ Ruff/mypy/Vulture discover new Python code repository-wide; complexity covers `s
 uv run --frozen python -m build
 ```
 
-CI additionally installs the wheel with hash-checked locked runtime dependencies outside the checkout, checks `py.typed`, and runs public API/streaming MockTransport tests against that installed artifact. Version `0.0.0` is a local development placeholder, not a release; no publication workflow exists. `httpx` is the only direct runtime dependency.
+CI additionally installs the wheel with hash-checked locked runtime dependencies outside the checkout, checks `py.typed`, and runs public API/streaming MockTransport tests against that installed artifact. Version `0.0.0` remains a local development placeholder, not a release. The release workflow is implemented in this preparation branch but **not activated or published**; independent QA/spec-security review and fresh-wheel verification **PASS** (179 checkout tests, 14 focused release tests and 161 runtime tests per clean noneditable wheel on Python 3.11/3.14). Exact-commit hosted CI is **PENDING**. See [release promotion](#release-promotion-and-trusted-publishing). `httpx` is the only direct runtime dependency.
 
 Use `uv lock` after deliberately changing dependencies, review the diff, then rerun gates. Dependabot proposes action/uv dependency updates; maintainers review them, never auto-merge security tooling changes. CI actions are pinned by commit SHA, PR jobs have read-only permissions, and no secrets or persisted checkout credentials.
 
@@ -54,6 +54,33 @@ Use `uv lock` after deliberately changing dependencies, review the diff, then re
 The cutoff rolls at resolution time, but merely passing time does not rewrite the lock daily. `--frozen` sync/run/export performs no new resolution or age check: it uses the checked-in lock and its selected artifacts/hashes. Git, path and direct-URL dependencies or direct installation of a wheel are outside this registry policy. Future PyPI users installing this SDK do **not** inherit this repository's uv configuration.
 
 [Dependabot cooldown](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) independently delays uv and GitHub Actions **version updates** by seven days; its weekly schedule picks eligible releases at the next check. Dependabot **security updates are exempt from its cooldown, not from uv's resolver policy**. For an urgent security fix, explicitly review a temporary package-targeted resolver override (for example, `uv lock --refresh --exclude-newer-package PACKAGE=false`), review every newly selected artifact, and remove the exception afterward; ordinary repository/CI defaults remain seven days with no permanent allowlist. CLI/environment overrides (including `--exclude-newer false`, `UV_EXCLUDE_NEWER`, or `--no-config`) and configuration edits can bypass the native policy: maintainers are trusted, and manual lock/SHA edits are not a tamper-proof merge gate. Delaying first-wave adoption is not a malware guarantee; retain reviewed hashes, pins, and security fixes.
+
+## Release promotion and Trusted Publishing
+
+Preparation only: do **not** configure external settings, create/push `release`, merge a promotion PR, execute `uv publish` (even a dry run), or request identity tokens during setup. No PyPI release or package-name availability is established. The approved [013 contract and evidence](specs/013-release-branch-publishing.md) is authoritative.
+
+After separate authorization, maintainers complete one-time setup:
+
+1. Use a PyPI account with verified email and 2FA; establish `speech-sdk-python` name availability/ownership. For a new project, add a [pending Trusted Publisher](https://pypi.org/manage/account/publishing/); for an owned project, use Manage → Publishing. A pending publisher **does not reserve the name**; first successful upload creates the project under that account.
+
+   | Publisher field | Exact value |
+   | --- | --- |
+   | Project | `speech-sdk-python` |
+   | Repository owner | `hybrd-oss` |
+   | Repository name | `speech-sdk-python` |
+   | Workflow filename | `release.yml` |
+   | Environment | `pypi` |
+
+2. Configure GitHub's `pypi` environment with **Selected branches and tags**, one **Branch** rule for exact `release` only. No tags, `main`, all-protected-branches rule, required reviewers, wait timer or second manual gate. Naming `pypi` in YAML may auto-create an **unprotected** environment; it does not configure these restrictions. No API-token secret is needed.
+3. Protect `release`: require reviewed PRs and all quality/runtime checks, prohibit force pushes/direct bypass. Maintainers enforce `main` as the PR source externally; the workflow does not enforce a `main` head branch. Confirm actual hosted check names rather than guessing them.
+
+For each later release, choose a **new** canonical public PEP 440 version in an ordinary version PR to `main`, review metadata/license/README readiness and reconcile the project entry in `uv.lock` without unrelated upgrades. The first real-version PR may use `uv version 0.1.0 --frozen`, followed by `uv lock` and reviewed gates; **do not run those edits now**. Public rc/post/dev versions are supported; local versions and placeholder/equivalent-zero versions are rejected. There is no automatic bump, calendar or tag requirement.
+
+Then deliberately merge a reviewed `main` → `release` PR. Only that release push invokes local reusable Checks at the triggering SHA: **both Python 3.11/3.14 runtime jobs**, all **13 quality hooks**, source-version guard, fresh build/bundle validation and clean noneditable wheel checks must pass before upload. The immutable artifact is named `release-dist-${{ github.sha }}-${{ github.run_attempt }}`. A separate OIDC-only publisher waits for complete Checks success and runs only pinned uv setup, same-run artifact download and `uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz`; no checkout, rebuild or project-code execution occurs there. Main/PR runs remain ordinary checks at `0.0.0`, with no release guard failure, artifact upload or publication.
+
+Initializing `release` at the current placeholder can itself trigger a **blocked `0.0.0` run**; branch creation is not authorized now and first promotion must be deliberate only after readiness. Failed gates/missing artifacts stop publication. PyPI will not replace used filenames; identical partial uploads can be retried, altered bytes fail. Inspect each outcome before promoting the next version: concurrency preserves an in-flight run but pending pushes can coalesce. No attestations are promised. Native seven-day uv policy and dependencies remain unchanged; `packaging` and `ruamel.yaml` are existing locked **dev-only** guard/test dependencies, not runtime dependencies or PyYAML.
+
+See [013 offline evidence](specs/013-release-branch-publishing.md#implementation-evidence-and-remaining-gates) for historical implementation checks and final independent offline acceptance. Future consumers may use `uv add speech-sdk-python` and `import speech_sdk` **only after confirmed publication**.
 
 ## Public-repository safety
 
@@ -71,7 +98,7 @@ uv sync --frozen --no-dev --python 3.11
 
 See [README](README.md#clone-install-run) for smoke commands and POSIX/PowerShell key configuration.
 
-Tools stay on Python 3.11. Runtime CI uses Python 3.11 and 3.14 without dev dependencies. Select SDK test modules explicitly: `test_quality_tools` imports Radon and must not be imported in runtime-only jobs. The local test commands below remove provider keys/configuration, including unused `AZURE_API_KEY`; `UV_OFFLINE=1` requires previously cached dependencies/interpreters. CI currently unsets only OpenAI/xAI keys, but its credentialless jobs receive no API secrets and make no provider calls. Azure implementation and final documentation QA/review passed. Including Azure tests does not change historical 007 evidence or verify live synthesis. Pronunciation tests use pure helpers and MockTransport, never paid calls; current feature evidence is separate in [011](specs/011-pronunciation-substitutions.md#verified-offline-evidence).
+Tools stay on Python 3.11. Runtime CI uses Python 3.11 and 3.14 without dev dependencies. Select SDK test modules explicitly: `test_quality_tools` imports Radon and `test_release_workflow` imports dev-only YAML/version tooling; neither belongs in runtime-only or installed-wheel jobs. The local test commands below remove provider keys/configuration, including unused `AZURE_API_KEY`; `UV_OFFLINE=1` requires previously cached dependencies/interpreters. CI currently unsets only OpenAI/xAI keys, but its credentialless jobs receive no API secrets and make no provider calls. Azure implementation and final documentation QA/review passed. Including Azure tests does not change historical 007 evidence or verify live synthesis. Pronunciation tests use pure helpers and MockTransport, never paid calls; current feature evidence is separate in [011](specs/011-pronunciation-substitutions.md#verified-offline-evidence).
 
 ```sh
 uv sync --frozen --no-dev --python 3.14
@@ -103,8 +130,8 @@ cp -r smoke /tmp/speech-sdk-installed/
   /tmp/speech-sdk-wheel/bin/python -m unittest discover -s tests -v)
 ```
 
-The copied-wheel selection matches CI: API (13), Azure (18), streaming (10), smoke (30) and pronunciation (14), **85 tests**. This is a subset of the **144-test** runtime module selection above, not evidence that fresh pronunciation wheels have already passed.
+The command fences above preserve the historical pronunciation-era selections: copied-wheel API (13), Azure (18), streaming (10), smoke (30) and pronunciation (14), **85 tests**, versus the **144-test** runtime selection. Current CI additionally selects `test_result_details` in both; its ten-module runtime selection has **161 tests**. See [012 historical verified wheels](specs/012-composite-result-inspection.md#verified-offline-evidence) and [013 verified fresh wheels](specs/013-release-branch-publishing.md#implementation-evidence-and-remaining-gates), built with the current main's setuptools 84.0.0. Earlier wheel passes remain historical evidence.
 
-The wheel install must follow hash-required runtime export/install, not replace it with an isolated `--no-deps` wheel install. Inspect sdist/wheel contents for license, attribution metadata, `py.typed`, runtime modules, and absence of secrets/audio/test artifacts. Validate CI edits with `actionlint .github/workflows/checks.yml`; preserve read-only permissions and SHA pins.
+The wheel install must follow hash-required runtime export/install, not replace it with an isolated `--no-deps` wheel install. Inspect sdist/wheel contents for license, attribution metadata, `py.typed`, runtime modules, and absence of secrets/audio/test artifacts. Validate CI edits with `actionlint .github/workflows/checks.yml .github/workflows/release.yml`; preserve read-only checks, publisher-only OIDC and SHA pins.
 
 For clone/install, Windows keys and paid smoke commands see [README](README.md). Do not execute live provider calls during ordinary contribution checks; any new paid verification requires explicit opt-in and a bounded request budget. The final xAI gate has passed; no rerun is needed for documentation changes. Preserve historical [007](specs/007-validation-and-xai-e2e.md) evidence. Record future Azure evidence in [010](specs/010-azure-openai-tts.md), separate from that original OpenAI/xAI milestone: date/tested-source provenance, bounded command/request budget, actual success or safe failure, and WAV properties/duration/paths/listening only if performed. A missing or unavailable deployment is not PASS; offline passes alone are not live evidence. Azure uses the same buffered/streaming API but is not a selection in the two-provider smoke CLI.
